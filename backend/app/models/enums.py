@@ -35,3 +35,18 @@ class OTASource(str, enum.Enum):
     BOOKING_COM = "BOOKING_COM"
     TRAVELOKA = "TRAVELOKA"
     DIRECT = "DIRECT"
+
+
+class PaymentMethod(str, enum.Enum):
+    CASH = "CASH"
+    BANK_TRANSFER = "BANK_TRANSFER"
+    OTA_COLLECTED = "OTA_COLLECTED"
+
+
+class ExpenseCategory(str, enum.Enum):
+    CLEANING = "CLEANING"
+    SUPPLIES = "SUPPLIES"
+    OTHER = "OTHER"
+    UTILITIES = "UTILITIES"
+    SALARIES = "SALARIES"
+    MAINTENANCE = "MAINTENANCE"
