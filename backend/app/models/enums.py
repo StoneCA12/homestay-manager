@@ -1,0 +1,37 @@
+import enum
+
+
+class UserRole(str, enum.Enum):
+    OWNER = "OWNER"
+    ADMIN = "ADMIN"
+    RECEPTIONIST = "RECEPTIONIST"
+
+
+class RoomType(str, enum.Enum):
+    SINGLE = "SINGLE"
+    DOUBLE = "DOUBLE"
+    TWIN = "TWIN"
+    TRIPLE = "TRIPLE"
+    SUITE = "SUITE"
+
+
+class RoomStatus(str, enum.Enum):
+    AVAILABLE = "AVAILABLE"
+    DIRTY = "DIRTY"
+    CLEANING = "CLEANING"
+    OUT_OF_ORDER = "OUT_OF_ORDER"
+
+
+class BookingStatus(str, enum.Enum):
+    CONFIRMED = "CONFIRMED"
+    CHECKED_IN = "CHECKED_IN"
+    CHECKED_OUT = "CHECKED_OUT"
+    CANCELLED = "CANCELLED"
+    NO_SHOW = "NO_SHOW"
+
+
+class OTASource(str, enum.Enum):
+    AGODA = "AGODA"
+    BOOKING_COM = "BOOKING_COM"
+    TRAVELOKA = "TRAVELOKA"
+    DIRECT = "DIRECT"
