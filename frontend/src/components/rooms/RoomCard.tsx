@@ -1,17 +1,18 @@
+import { useTranslation } from 'react-i18next'
 import type { Room } from '../../types'
 
 const STATUS_CONFIG: Record<
   string,
-  { bg: string; border: string; badge: string; label: string }
+  { bg: string; border: string; badge: string }
 > = {
-  AVAILABLE:     { bg: 'bg-white',        border: 'border-gray-200',  badge: 'bg-gray-100 text-gray-600',    label: 'Available'      },
-  OCCUPIED:      { bg: 'bg-green-50',     border: 'border-green-300', badge: 'bg-green-500 text-white',      label: 'Occupied'       },
-  ARRIVAL_TODAY: { bg: 'bg-yellow-50',    border: 'border-yellow-300',badge: 'bg-yellow-400 text-white',     label: 'Arriving Today' },
-  CHECKOUT_TODAY:{ bg: 'bg-blue-50',      border: 'border-blue-300',  badge: 'bg-blue-500 text-white',       label: 'Checkout Today' },
-  DIRTY:         { bg: 'bg-red-50',       border: 'border-red-300',   badge: 'bg-red-500 text-white',        label: 'Dirty'          },
-  CLEANING:      { bg: 'bg-orange-50',    border: 'border-orange-300',badge: 'bg-orange-400 text-white',     label: 'Cleaning'       },
-  OUT_OF_ORDER:  { bg: 'bg-gray-100',     border: 'border-gray-400',  badge: 'bg-gray-500 text-white',       label: 'Out of Order'   },
-  OVERBOOKING:   { bg: 'bg-purple-50',    border: 'border-purple-300',badge: 'bg-purple-600 text-white',     label: 'Overbooking'    },
+  AVAILABLE:     { bg: 'bg-white',        border: 'border-gray-200',  badge: 'bg-gray-100 text-gray-600'    },
+  OCCUPIED:      { bg: 'bg-green-50',     border: 'border-green-300', badge: 'bg-green-500 text-white'      },
+  ARRIVAL_TODAY: { bg: 'bg-yellow-50',    border: 'border-yellow-300',badge: 'bg-yellow-400 text-white'     },
+  CHECKOUT_TODAY:{ bg: 'bg-blue-50',      border: 'border-blue-300',  badge: 'bg-blue-500 text-white'       },
+  DIRTY:         { bg: 'bg-red-50',       border: 'border-red-300',   badge: 'bg-red-500 text-white'        },
+  CLEANING:      { bg: 'bg-orange-50',    border: 'border-orange-300',badge: 'bg-orange-400 text-white'     },
+  OUT_OF_ORDER:  { bg: 'bg-gray-100',     border: 'border-gray-400',  badge: 'bg-gray-500 text-white'       },
+  OVERBOOKING:   { bg: 'bg-purple-50',    border: 'border-purple-300',badge: 'bg-purple-600 text-white'     },
 }
 
 const ROOM_TYPE_LABEL: Record<string, string> = {
@@ -23,6 +24,7 @@ function formatVND(amount: string) {
 }
 
 export default function RoomCard({ room }: { room: Room }) {
+  const { t } = useTranslation()
   const cfg = STATUS_CONFIG[room.display_status] ?? STATUS_CONFIG.AVAILABLE
 
   return (
@@ -31,7 +33,7 @@ export default function RoomCard({ room }: { room: Room }) {
       <div className="flex items-start justify-between">
         <span className="text-2xl font-bold text-slate-800">{room.room_number}</span>
         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.badge}`}>
-          {cfg.label}
+          {t(`displayStatus.${room.display_status}` as any)}
         </span>
       </div>
 
@@ -48,7 +50,7 @@ export default function RoomCard({ room }: { room: Room }) {
           {room.check_out_date && (
             <p className="text-xs text-slate-500">
               Checkout:{' '}
-              {new Date(room.check_out_date).toLocaleDateString('en-GB', {
+              {new Date(room.check_out_date).toLocaleDateString('vi-VN', {
                 day: 'numeric', month: 'short',
               })}
             </p>

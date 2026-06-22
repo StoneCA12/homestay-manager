@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import Layout from '../../components/layout/Layout'
 import RoomCard from '../../components/rooms/RoomCard'
 import { roomsApi } from '../../services/api'
@@ -8,16 +9,8 @@ import type { DashboardStats, Room } from '../../types'
 
 const OTA_BANNER_KEY = 'lastBookingsVisit'
 
-const STAT_CARDS = [
-  { key: 'total_rooms',     label: 'Total Rooms',     color: 'bg-slate-50  border-slate-200  text-slate-700' },
-  { key: 'occupied',        label: 'Occupied',         color: 'bg-green-50  border-green-200  text-green-700' },
-  { key: 'arrivals_today',  label: 'Arrivals Today',   color: 'bg-yellow-50 border-yellow-200 text-yellow-700' },
-  { key: 'checkouts_today', label: 'Checkouts Today',  color: 'bg-blue-50   border-blue-200   text-blue-700' },
-  { key: 'available',       label: 'Available',        color: 'bg-white     border-gray-200   text-gray-600' },
-  { key: 'dirty',           label: 'Needs Cleaning',   color: 'bg-red-50    border-red-200    text-red-700' },
-] as const
-
 export default function DashboardPage() {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [rooms, setRooms] = useState<Room[]>([])
@@ -25,6 +18,25 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [otaHours, setOtaHours] = useState<number | null>(null)
+
+  const STAT_CARDS = [
+    { key: 'total_rooms',     label: t('dashboard.totalRooms'),     color: 'bg-slate-50  border-slate-200  text-slate-700' },
+    { key: 'occupied',        label: t('dashboard.occupied'),        color: 'bg-green-50  border-green-200  text-green-700' },
+    { key: 'arrivals_today',  label: t('dashboard.arrivalsToday'),   color: 'bg-yellow-50 border-yellow-200 text-yellow-700' },
+    { key: 'checkouts_today', label: t('dashboard.checkoutsToday'),  color: 'bg-blue-50   border-blue-200   text-blue-700' },
+    { key: 'available',       label: t('dashboard.available'),       color: 'bg-white     border-gray-200   text-gray-600' },
+    { key: 'dirty',           label: t('dashboard.needsCleaning'),   color: 'bg-red-50    border-red-200    text-red-700' },
+  ] as const
+
+  const LEGEND = [
+    { key: 'dashboard.legend.occupied',      dot: 'bg-green-500'  },
+    { key: 'dashboard.legend.arrivalToday',  dot: 'bg-yellow-400' },
+    { key: 'dashboard.legend.checkoutToday', dot: 'bg-blue-500'   },
+    { key: 'dashboard.legend.dirty',         dot: 'bg-red-500'    },
+    { key: 'dashboard.legend.cleaning',      dot: 'bg-orange-400' },
+    { key: 'dashboard.legend.outOfOrder',    dot: 'bg-gray-400'   },
+    { key: 'dashboard.legend.available',     dot: 'bg-gray-300'   },
+  ] as const
 
   useEffect(() => {
     if (user?.role !== 'RECEPTIONIST') {
@@ -43,7 +55,7 @@ export default function DashboardPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const today = new Date().toLocaleDateString('en-GB', {
+  const today = new Date().toLocaleDateString('vi-VN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 
@@ -63,16 +75,13 @@ export default function DashboardPage() {
             className="w-full mb-5 flex items-center gap-3 bg-yellow-50 border border-yellow-300 text-yellow-800 text-sm font-medium px-4 py-3 rounded-xl hover:bg-yellow-100 transition-colors text-left"
           >
             <span className="text-lg">⚠️</span>
-            <span>
-              Bookings unchecked for <strong>{otaHours} hours</strong> — review OTA emails for cancellations or changes.
-              <span className="ml-2 underline text-yellow-700">Go to Bookings →</span>
-            </span>
+            <span>{t('dashboard.otaBanner')}</span>
           </button>
         )}
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">Room Status Board</h1>
+          <h1 className="text-2xl font-bold text-slate-800">{t('dashboard.title')}</h1>
           <p className="text-sm text-slate-500 mt-1">{today}</p>
         </div>
 
@@ -90,18 +99,10 @@ export default function DashboardPage() {
 
         {/* Status legend */}
         <div className="flex flex-wrap gap-3 mb-6">
-          {[
-            { label: 'Occupied',        dot: 'bg-green-500'  },
-            { label: 'Arriving Today',  dot: 'bg-yellow-400' },
-            { label: 'Checkout Today',  dot: 'bg-blue-500'   },
-            { label: 'Dirty',           dot: 'bg-red-500'    },
-            { label: 'Cleaning',        dot: 'bg-orange-400' },
-            { label: 'Overbooking',     dot: 'bg-purple-600' },
-            { label: 'Available',       dot: 'bg-gray-300'   },
-          ].map(({ label, dot }) => (
-            <span key={label} className="flex items-center gap-1.5 text-xs text-slate-500">
+          {LEGEND.map(({ key, dot }) => (
+            <span key={key} className="flex items-center gap-1.5 text-xs text-slate-500">
               <span className={`w-2.5 h-2.5 rounded-full ${dot}`} />
-              {label}
+              {t(key as any)}
             </span>
           ))}
         </div>

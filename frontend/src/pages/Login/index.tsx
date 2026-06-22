@@ -1,8 +1,10 @@
 import { FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../contexts/AuthContext'
 
 export default function LoginPage() {
+  const { t } = useTranslation()
   const { login } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -18,7 +20,7 @@ export default function LoginPage() {
       await login(email, password)
       navigate('/')
     } catch {
-      setError('Incorrect email or password.')
+      setError(t('auth.loginFailed'))
     } finally {
       setLoading(false)
     }
@@ -31,12 +33,12 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="text-3xl font-bold text-slate-800">🏠</div>
           <h1 className="text-xl font-bold text-slate-800 mt-2">Homestay Manager</h1>
-          <p className="text-sm text-slate-500 mt-1">Sign in to your account</p>
+          <p className="text-sm text-slate-500 mt-1">{t('auth.login')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t('auth.email')}</label>
             <input
               type="email"
               required
@@ -47,7 +49,7 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t('auth.password')}</label>
             <input
               type="password"
               required
@@ -69,7 +71,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? t('auth.loggingIn') : t('auth.login')}
           </button>
         </form>
 

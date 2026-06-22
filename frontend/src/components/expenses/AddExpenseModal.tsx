@@ -1,19 +1,11 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../contexts/AuthContext'
 import { expensesApi } from '../../services/api'
 import type { Expense, ExpenseCategory } from '../../types'
 
 const ALL_CATEGORIES: ExpenseCategory[] = ['CLEANING', 'SUPPLIES', 'OTHER', 'UTILITIES', 'SALARIES', 'MAINTENANCE']
 const RECEPTIONIST_CATEGORIES: ExpenseCategory[] = ['CLEANING', 'SUPPLIES', 'OTHER']
-
-const CATEGORY_LABEL: Record<ExpenseCategory, string> = {
-  CLEANING: 'Cleaning',
-  SUPPLIES: 'Supplies',
-  OTHER: 'Other',
-  UTILITIES: 'Utilities',
-  SALARIES: 'Salaries',
-  MAINTENANCE: 'Maintenance',
-}
 
 function toISO(d: Date): string {
   return d.toISOString().split('T')[0]
@@ -25,6 +17,7 @@ interface Props {
 }
 
 export default function AddExpenseModal({ onClose, onCreated }: Props) {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const isReceptionist = user?.role === 'RECEPTIONIST'
   const allowedCategories = isReceptionist ? RECEPTIONIST_CATEGORIES : ALL_CATEGORIES
@@ -62,26 +55,26 @@ export default function AddExpenseModal({ onClose, onCreated }: Props) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-bold text-slate-800">Add Expense</h2>
+          <h2 className="text-lg font-bold text-slate-800">{t('addExpense.title')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Category</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">{t('addExpense.category')}</label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
               {allowedCategories.map((c) => (
-                <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
+                <option key={c} value={c}>{t(`expenseCategory.${c}` as any)}</option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Amount (VND)</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">{t('addExpense.amount')}</label>
             <input
               type="number"
               min="1"
@@ -94,7 +87,7 @@ export default function AddExpenseModal({ onClose, onCreated }: Props) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Date</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">{t('addExpense.date')}</label>
             <input
               type="date"
               required
@@ -105,7 +98,7 @@ export default function AddExpenseModal({ onClose, onCreated }: Props) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Description (optional)</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">{t('addExpense.description')}</label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -123,7 +116,7 @@ export default function AddExpenseModal({ onClose, onCreated }: Props) {
               Cancel
             </button>
             <button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
-              {saving ? 'Saving…' : 'Add Expense'}
+              {saving ? t('addExpense.submitting') : t('addExpense.submit')}
             </button>
           </div>
         </form>

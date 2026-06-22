@@ -73,7 +73,7 @@ def client(db):
 @pytest.fixture
 def owner(db):
     u = User(
-        email="owner@local.test",
+        email="owner@example.com",
         hashed_password=hash_password("pw-owner"),
         full_name="Owner User",
         role=UserRole.OWNER,
@@ -88,7 +88,7 @@ def owner(db):
 @pytest.fixture
 def admin(db):
     u = User(
-        email="admin@local.test",
+        email="admin@example.com",
         hashed_password=hash_password("pw-admin"),
         full_name="Admin User",
         role=UserRole.ADMIN,
@@ -103,7 +103,7 @@ def admin(db):
 @pytest.fixture
 def receptionist(db):
     u = User(
-        email="recep@local.test",
+        email="recep@example.com",
         hashed_password=hash_password("pw-recep"),
         full_name="Receptionist User",
         role=UserRole.RECEPTIONIST,

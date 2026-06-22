@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import BookingCalendar from '../../components/bookings/BookingCalendar'
 import BookingFormModal from '../../components/bookings/BookingFormModal'
 import PaymentModal from '../../components/bookings/PaymentModal'
 import Layout from '../../components/layout/Layout'
 import { bookingsApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
-import type { Booking, CalendarBooking, OTASource, Room } from '../../types'
+import type { Booking, CalendarBooking, Room } from '../../types'
 import { formatDate, formatVND } from '../../utils/format'
 
 const OTA_BANNER_KEY = 'lastBookingsVisit'
@@ -20,10 +21,6 @@ const STATUS_BADGE: Record<string, string> = {
   NO_SHOW:     'bg-yellow-100 text-yellow-700',
 }
 
-const OTA_LABEL: Record<OTASource, string> = {
-  AGODA: 'Agoda', BOOKING_COM: 'Booking.com', TRAVELOKA: 'Traveloka', DIRECT: 'Direct',
-}
-
 function firstOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1)
 }
@@ -33,6 +30,7 @@ function toISO(d: Date): string {
 }
 
 export default function BookingsPage() {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
@@ -85,7 +83,7 @@ export default function BookingsPage() {
   }
 
   const handleAction = async (booking: Booking, action: string) => {
-    if (action === 'cancel' && !confirm(`Cancel booking for ${booking.guest_name} in room ${booking.room_number}?`)) return
+    if (action === 'cancel' && !confirm(t('bookings.cancelConfirm', { guest: booking.guest_name, room: booking.room_number }))) return
     setActioning(booking.id)
     try {
       const updated = await bookingsApi.updateStatus(booking.id, action)
@@ -120,29 +118,29 @@ export default function BookingsPage() {
       <div className="p-8 max-w-7xl">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Bookings</h1>
+            <h1 className="text-2xl font-bold text-slate-800">{t('bookings.title')}</h1>
             {tab !== 'calendar' && (
-              <p className="text-sm text-slate-500 mt-1">{bookings.length} booking{bookings.length !== 1 ? 's' : ''}</p>
+              <p className="text-sm text-slate-500 mt-1">{t('bookings.count', { count: bookings.length })}</p>
             )}
           </div>
           <button
             onClick={() => setShowForm(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
           >
-            + New Booking
+            {t('bookings.newBooking')}
           </button>
         </div>
 
         <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
-          {(['today', 'all', 'calendar'] as Tab[]).map((t) => (
+          {(['today', 'all', 'calendar'] as Tab[]).map((tabKey) => (
             <button
-              key={t}
-              onClick={() => switchTab(t)}
+              key={tabKey}
+              onClick={() => switchTab(tabKey)}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                tab === t ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                tab === tabKey ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              {t === 'today' ? 'Today' : t === 'all' ? 'All Bookings' : 'Calendar'}
+              {tabKey === 'today' ? t('bookings.tabs.today') : tabKey === 'all' ? t('bookings.tabs.all') : t('bookings.tabs.calendar')}
             </button>
           ))}
         </div>
@@ -161,15 +159,25 @@ export default function BookingsPage() {
         {/* List tabs */}
         {tab !== 'calendar' && (
           loading ? (
-            <p className="text-slate-500 text-sm">Loading…</p>
+            <p className="text-slate-500 text-sm">{t('bookings.loading')}</p>
           ) : bookings.length === 0 ? (
-            <p className="text-slate-400 text-sm">No bookings found.</p>
+            <p className="text-slate-400 text-sm">{t('bookings.noBookings')}</p>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-gray-200">
                   <tr>
-                    {['Room', 'Guest', 'Check-in', 'Check-out', 'OTA', 'Status', 'Total', 'Collected', 'Actions'].map((h) => (
+                    {[
+                      t('bookings.table.room'),
+                      t('bookings.table.guest'),
+                      t('bookings.table.checkIn'),
+                      t('bookings.table.checkOut'),
+                      t('bookings.table.ota'),
+                      t('bookings.table.status'),
+                      t('bookings.table.total'),
+                      t('bookings.table.collected'),
+                      t('bookings.table.actions'),
+                    ].map((h) => (
                       <th key={h} className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -184,43 +192,43 @@ export default function BookingsPage() {
                         <td className="px-4 py-3 text-slate-700">{b.guest_name}</td>
                         <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(b.check_in_date)}</td>
                         <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(b.check_out_date)}</td>
-                        <td className="px-4 py-3 text-slate-500">{OTA_LABEL[b.ota_source]}</td>
+                        <td className="px-4 py-3 text-slate-500">{t(`ota.${b.ota_source}` as any)}</td>
                         <td className="px-4 py-3">
                           <span className={`text-xs font-semibold px-2 py-1 rounded-full ${STATUS_BADGE[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                            {b.status.replace('_', ' ')}
+                            {t(`status.${b.status}` as any)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-slate-700 font-medium whitespace-nowrap">{formatVND(b.total_price)}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span className={outstanding > 0 ? 'text-red-600 font-semibold' : 'text-green-600'}>
-                            {outstanding > 0 ? `−${formatVND(outstanding)}` : '✓ Paid'}
+                            {outstanding > 0 ? `−${formatVND(outstanding)}` : t('bookings.paid')}
                           </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1.5 flex-wrap">
                             {b.status === 'CONFIRMED' && (
                               <button disabled={busy} onClick={() => handleAction(b, 'check_in')} className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50 whitespace-nowrap">
-                                {busy ? '…' : 'Check In'}
+                                {busy ? '…' : t('bookings.actions.checkIn')}
                               </button>
                             )}
                             {b.status === 'CHECKED_IN' && (
                               <button disabled={busy} onClick={() => handleAction(b, 'check_out')} className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50 whitespace-nowrap">
-                                {busy ? '…' : 'Check Out'}
+                                {busy ? '…' : t('bookings.actions.checkOut')}
                               </button>
                             )}
                             {(b.status === 'CONFIRMED' || b.status === 'CHECKED_IN' || b.status === 'CHECKED_OUT') && (
                               <button onClick={() => setPaymentTarget(b)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 whitespace-nowrap">
-                                Pay
+                                {t('bookings.actions.pay')}
                               </button>
                             )}
                             {(b.status === 'CONFIRMED' || b.status === 'CHECKED_IN') && (
                               <button disabled={busy} onClick={() => handleAction(b, 'cancel')} className="text-xs px-2 py-1 rounded bg-red-50 text-red-500 hover:bg-red-100 disabled:opacity-50">
-                                {busy ? '…' : '✕'}
+                                {busy ? '…' : t('bookings.actions.cancel')}
                               </button>
                             )}
                             {b.status === 'CONFIRMED' && (
                               <button disabled={busy} onClick={() => handleAction(b, 'no_show')} className="text-xs px-2 py-1 rounded bg-yellow-50 text-yellow-600 hover:bg-yellow-100 disabled:opacity-50 whitespace-nowrap">
-                                No-show
+                                {busy ? '…' : t('bookings.actions.noShow')}
                               </button>
                             )}
                           </div>

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from tests.conftest import TODAY, cookie_for
 
@@ -43,7 +44,7 @@ def test_create_expense_response_shape(client, owner):
     resp = _expense(client, owner, category="SALARIES", amount="5000000")
     data = resp.json()
     assert data["category"] == "SALARIES"
-    assert data["amount"] == "5000000"
+    assert Decimal(data["amount"]) == Decimal("5000000")
     assert data["expense_date"] == str(TODAY)
     assert data["recorded_by_name"] == "Owner User"
 

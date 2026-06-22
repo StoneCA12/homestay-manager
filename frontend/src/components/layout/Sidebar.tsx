@@ -1,15 +1,17 @@
 import { NavLink } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../contexts/AuthContext'
 
 const NAV = [
-  { to: '/',             label: 'Dashboard',    icon: '🏠', ownerOnly: false, adminUp: false },
-  { to: '/bookings',     label: 'Bookings',     icon: '📅', ownerOnly: false, adminUp: false },
-  { to: '/housekeeping', label: 'Housekeeping', icon: '🧹', ownerOnly: false, adminUp: false },
-  { to: '/revenue',      label: 'Revenue',      icon: '💰', ownerOnly: false, adminUp: true  },
-  { to: '/settings',     label: 'Settings',     icon: '⚙️', ownerOnly: true,  adminUp: false },
+  { to: '/',             key: 'nav.dashboard',    icon: '🏠', ownerOnly: false, adminUp: false },
+  { to: '/bookings',     key: 'nav.bookings',     icon: '📅', ownerOnly: false, adminUp: false },
+  { to: '/housekeeping', key: 'nav.housekeeping', icon: '🧹', ownerOnly: false, adminUp: false },
+  { to: '/revenue',      key: 'nav.revenue',      icon: '💰', ownerOnly: false, adminUp: true  },
+  { to: '/settings',     key: 'nav.settings',     icon: '⚙️', ownerOnly: true,  adminUp: false },
 ]
 
 export default function Sidebar() {
+  const { t } = useTranslation()
   const { user, logout } = useAuth()
 
   const visibleNav = NAV.filter(({ ownerOnly, adminUp }) => {
@@ -27,7 +29,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {visibleNav.map(({ to, label, icon }) => (
+        {visibleNav.map(({ to, key, icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -41,7 +43,7 @@ export default function Sidebar() {
             }
           >
             <span>{icon}</span>
-            {label}
+            {t(key as any)}
           </NavLink>
         ))}
       </nav>
@@ -49,12 +51,12 @@ export default function Sidebar() {
       {/* User + logout */}
       <div className="px-4 py-4 border-t border-slate-700">
         <p className="text-slate-400 text-xs truncate">{user?.full_name}</p>
-        <p className="text-slate-500 text-xs truncate mb-3">{user?.role}</p>
+        <p className="text-slate-500 text-xs truncate mb-3">{t(`role.${user?.role}` as any)}</p>
         <button
           onClick={logout}
           className="w-full text-left text-slate-400 hover:text-white text-xs py-1 transition-colors"
         >
-          ← Sign out
+          {t('nav.logout')}
         </button>
       </div>
     </aside>

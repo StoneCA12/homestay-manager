@@ -1,17 +1,19 @@
+import { useTranslation } from 'react-i18next'
 import type { Room, RoomStatus } from '../../types'
 
-const STATUS_CONFIG: Record<RoomStatus, { label: string; bg: string; border: string; badge: string }> = {
-  AVAILABLE:    { label: 'Available',    bg: 'bg-white',     border: 'border-gray-200',   badge: 'bg-gray-100 text-gray-600'  },
-  DIRTY:        { label: 'Dirty',        bg: 'bg-red-50',    border: 'border-red-300',    badge: 'bg-red-500 text-white'      },
-  CLEANING:     { label: 'Cleaning',     bg: 'bg-orange-50', border: 'border-orange-300', badge: 'bg-orange-400 text-white'   },
-  OUT_OF_ORDER: { label: 'Out of Order', bg: 'bg-gray-100',  border: 'border-gray-400',   badge: 'bg-gray-500 text-white'     },
+const STATUS_CONFIG: Record<RoomStatus, { bg: string; border: string; badge: string }> = {
+  AVAILABLE:    { bg: 'bg-white',     border: 'border-gray-200',   badge: 'bg-gray-100 text-gray-600'  },
+  DIRTY:        { bg: 'bg-red-50',    border: 'border-red-300',    badge: 'bg-red-500 text-white'      },
+  CLEANING:     { bg: 'bg-orange-50', border: 'border-orange-300', badge: 'bg-orange-400 text-white'   },
+  OUT_OF_ORDER: { bg: 'bg-gray-100',  border: 'border-gray-400',   badge: 'bg-gray-500 text-white'     },
 }
 
-const ACTIONS: Record<RoomStatus, { label: string; next: RoomStatus; color: string }[]> = {
-  AVAILABLE:    [{ label: 'Mark Dirty',     next: 'DIRTY',        color: 'bg-red-100 text-red-700 hover:bg-red-200'         }],
-  DIRTY:        [{ label: 'Start Cleaning', next: 'CLEANING',     color: 'bg-orange-100 text-orange-700 hover:bg-orange-200' }],
-  CLEANING:     [{ label: 'Mark Ready',     next: 'AVAILABLE',    color: 'bg-green-100 text-green-700 hover:bg-green-200'   }],
-  OUT_OF_ORDER: [{ label: 'Mark Available', next: 'AVAILABLE',    color: 'bg-gray-100 text-gray-700 hover:bg-gray-200'      }],
+// Maps current status → what status clicking the button transitions to
+const ACTIONS: Record<RoomStatus, { next: RoomStatus; color: string }[]> = {
+  AVAILABLE:    [{ next: 'DIRTY',     color: 'bg-red-100 text-red-700 hover:bg-red-200'         }],
+  DIRTY:        [{ next: 'CLEANING',  color: 'bg-orange-100 text-orange-700 hover:bg-orange-200' }],
+  CLEANING:     [{ next: 'AVAILABLE', color: 'bg-green-100 text-green-700 hover:bg-green-200'   }],
+  OUT_OF_ORDER: [{ next: 'AVAILABLE', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200'      }],
 }
 
 interface Props {
@@ -21,6 +23,7 @@ interface Props {
 }
 
 export default function HousekeepingRoomCard({ room, updating, onStatusChange }: Props) {
+  const { t } = useTranslation()
   const cfg = STATUS_CONFIG[room.housekeeping_status]
   const actions = ACTIONS[room.housekeeping_status]
 
@@ -29,7 +32,7 @@ export default function HousekeepingRoomCard({ room, updating, onStatusChange }:
       <div className="flex items-start justify-between">
         <span className="text-2xl font-bold text-slate-800">{room.room_number}</span>
         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.badge}`}>
-          {cfg.label}
+          {t(`roomStatus.${room.housekeeping_status}` as any)}
         </span>
       </div>
       <p className="text-xs text-slate-500">{room.room_type} · Floor {room.floor}</p>
@@ -41,7 +44,7 @@ export default function HousekeepingRoomCard({ room, updating, onStatusChange }:
             onClick={() => onStatusChange(room, a.next)}
             className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${a.color}`}
           >
-            {updating ? '…' : a.label}
+            {updating ? t('housekeeping.updating') : `${t('housekeeping.update')} → ${t(`roomStatus.${a.next}` as any)}`}
           </button>
         ))}
       </div>

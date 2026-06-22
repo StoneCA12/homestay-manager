@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import HousekeepingRoomCard, { STATUS_CONFIG } from '../../components/housekeeping/HousekeepingRoomCard'
 import Layout from '../../components/layout/Layout'
 import { roomsApi } from '../../services/api'
@@ -14,6 +15,7 @@ function groupByStatus(rooms: Room[]): Record<RoomStatus, Room[]> {
 }
 
 export default function HousekeepingPage() {
+  const { t } = useTranslation()
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<number | null>(null)
@@ -44,8 +46,7 @@ export default function HousekeepingPage() {
     <Layout>
       <div className="p-8 max-w-6xl">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">Housekeeping</h1>
-          <p className="text-sm text-slate-500 mt-1">Track and update room cleaning status</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('housekeeping.title')}</h1>
         </div>
 
         <div className="flex gap-3 mb-8">
@@ -54,19 +55,19 @@ export default function HousekeepingPage() {
             return (
               <div key={s} className={`rounded-xl border px-5 py-3 ${cfg.bg} ${cfg.border}`}>
                 <p className="text-2xl font-bold text-slate-800">{grouped[s].length}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{cfg.label}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{t(`roomStatus.${s}` as any)}</p>
               </div>
             )
           })}
         </div>
 
-        {loading && <p className="text-slate-500">Loading rooms…</p>}
+        {loading && <p className="text-slate-500">{t('bookings.loading')}</p>}
         {error && <p className="text-red-500 text-sm">{error}</p>}
 
         {!loading && ORDER.filter((s) => grouped[s].length > 0).map((s) => (
           <div key={s} className="mb-8">
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              {STATUS_CONFIG[s].label} ({grouped[s].length})
+              {t(`roomStatus.${s}` as any)} ({grouped[s].length})
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {grouped[s].map((room) => (
@@ -80,10 +81,6 @@ export default function HousekeepingPage() {
             </div>
           </div>
         ))}
-
-        {!loading && rooms.length > 0 && grouped.AVAILABLE.length === rooms.length && (
-          <p className="text-green-600 text-sm font-medium">All rooms are clean and available.</p>
-        )}
       </div>
     </Layout>
   )

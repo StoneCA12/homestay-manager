@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from tests.conftest import TODAY, cookie_for
 
@@ -31,7 +32,7 @@ def test_create_booking(client, room, owner):
     data = resp.json()
     assert data["room_number"] == "101"
     assert data["status"] == "CONFIRMED"
-    assert data["collected_amount"] == "0"
+    assert Decimal(data["collected_amount"]) == Decimal("0")
 
 
 def test_create_requires_auth(client, room):

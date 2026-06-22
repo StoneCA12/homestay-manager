@@ -1,0 +1,314 @@
+{
+  "common": {
+    "cancel": "Hủy",
+    "close": "Đóng",
+    "save": "Lưu",
+    "add": "Thêm",
+    "loading": "Đang tải...",
+    "noData": "Không có dữ liệu.",
+    "from": "Từ",
+    "to": "Đến",
+    "apply": "Xem",
+    "notes": "Ghi chú",
+    "description": "Mô tả",
+    "amount": "Số tiền",
+    "date": "Ngày",
+    "actions": "Thao tác",
+    "total": "Tổng",
+    "none": "Không có"
+  },
+  "nav": {
+    "dashboard": "Tổng quan",
+    "bookings": "Đặt phòng",
+    "housekeeping": "Dọn phòng",
+    "revenue": "Doanh thu",
+    "settings": "Cài đặt",
+    "logout": "Đăng xuất",
+    "loggedInAs": "Đang đăng nhập:"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Mật khẩu",
+    "login": "Đăng nhập",
+    "loggingIn": "Đang đăng nhập...",
+    "loginFailed": "Đăng nhập thất bại. Vui lòng kiểm tra lại."
+  },
+  "status": {
+    "CONFIRMED": "Đã đặt",
+    "CHECKED_IN": "Đã nhận phòng",
+    "CHECKED_OUT": "Đã trả phòng",
+    "CANCELLED": "Đã hủy",
+    "NO_SHOW": "Không đến"
+  },
+  "roomStatus": {
+    "AVAILABLE": "Sẵn sàng",
+    "DIRTY": "Cần dọn",
+    "CLEANING": "Đang dọn",
+    "OUT_OF_ORDER": "Hỏng"
+  },
+  "displayStatus": {
+    "AVAILABLE": "Phòng trống",
+    "OCCUPIED": "Đang có khách",
+    "ARRIVAL_TODAY": "Nhận phòng hôm nay",
+    "CHECKOUT_TODAY": "Trả phòng hôm nay",
+    "DIRTY": "Cần dọn",
+    "CLEANING": "Đang dọn",
+    "OUT_OF_ORDER": "Hỏng",
+    "OVERBOOKING": "Đặt trùng"
+  },
+  "ota": {
+    "AGODA": "Agoda",
+    "BOOKING_COM": "Booking.com",
+    "TRAVELOKA": "Traveloka",
+    "DIRECT": "Trực tiếp"
+  },
+  "paymentMethod": {
+    "CASH": "Tiền mặt",
+    "BANK_TRANSFER": "Chuyển khoản",
+    "OTA_COLLECTED": "OTA thu hộ"
+  },
+  "expenseCategory": {
+    "CLEANING": "Dọn dẹp",
+    "SUPPLIES": "Vật tư",
+    "OTHER": "Khác",
+    "UTILITIES": "Tiện ích",
+    "SALARIES": "Lương",
+    "MAINTENANCE": "Bảo trì"
+  },
+  "role": {
+    "OWNER": "Chủ",
+    "ADMIN": "Quản lý",
+    "RECEPTIONIST": "Lễ tân"
+  },
+  "dashboard": {
+    "title": "Tổng quan",
+    "totalRooms": "Tổng số phòng",
+    "occupied": "Đang có khách",
+    "arrivalsToday": "Nhận phòng hôm nay",
+    "checkoutsToday": "Trả phòng hôm nay",
+    "available": "Phòng trống",
+    "needsCleaning": "Cần dọn",
+    "otaBanner": "Có đặt phòng OTA mới chưa kiểm tra. Nhấn để xem.",
+    "legend": {
+      "available": "Trống",
+      "arrivalToday": "Nhận hôm nay",
+      "checkoutToday": "Trả hôm nay",
+      "occupied": "Đang ở",
+      "dirty": "Cần dọn",
+      "cleaning": "Đang dọn",
+      "outOfOrder": "Hỏng"
+    }
+  },
+  "bookings": {
+    "title": "Đặt phòng",
+    "newBooking": "+ Đặt phòng mới",
+    "count": "{{count}} đặt phòng",
+    "loading": "Đang tải...",
+    "noBookings": "Không có đặt phòng.",
+    "tabs": {
+      "today": "Hôm nay",
+      "all": "Tất cả",
+      "calendar": "Lịch"
+    },
+    "table": {
+      "room": "Phòng",
+      "guest": "Khách",
+      "checkIn": "Nhận phòng",
+      "checkOut": "Trả phòng",
+      "ota": "Nguồn",
+      "status": "Trạng thái",
+      "total": "Tổng tiền",
+      "collected": "Đã thu",
+      "actions": "Thao tác"
+    },
+    "actions": {
+      "checkIn": "Nhận phòng",
+      "checkOut": "Trả phòng",
+      "pay": "Thu tiền",
+      "cancel": "✕",
+      "noShow": "Không đến"
+    },
+    "paid": "✓ Đã thanh toán",
+    "cancelConfirm": "Hủy đặt phòng của {{guest}} tại phòng {{room}}?"
+  },
+  "bookingForm": {
+    "title": "Đặt phòng mới",
+    "room": "Phòng",
+    "selectRoom": "-- Chọn phòng --",
+    "otaSource": "Nguồn đặt",
+    "guestName": "Tên khách",
+    "guestPhone": "Số điện thoại",
+    "checkIn": "Ngày nhận phòng",
+    "checkOut": "Ngày trả phòng",
+    "numGuests": "Số khách",
+    "totalPrice": "Tổng tiền (VND)",
+    "bookingRef": "Mã đặt phòng (OTA)",
+    "notes": "Ghi chú",
+    "submit": "Tạo đặt phòng",
+    "submitting": "Đang tạo..."
+  },
+  "payment": {
+    "title": "Thanh toán — {{room}}",
+    "history": "Lịch sử thanh toán",
+    "noPayments": "Chưa có thanh toán nào.",
+    "method": "Phương thức",
+    "recordedBy": "Người thu",
+    "addPayment": "Ghi nhận thanh toán",
+    "submitting": "Đang lưu...",
+    "totalPrice": "Tổng tiền",
+    "collected": "Đã thu",
+    "outstanding": "Còn lại",
+    "fullyPaid": "Đã thanh toán đủ.",
+    "cancelledNote": "Đặt phòng đã hủy — không thể thanh toán."
+  },
+  "revenue": {
+    "title": "Doanh thu",
+    "tabs": {
+      "dailyReport": "Báo cáo ngày",
+      "revenue": "Doanh thu",
+      "expenses": "Chi phí"
+    },
+    "dateRange": {
+      "from": "Từ ngày",
+      "to": "Đến ngày",
+      "apply": "Xem"
+    },
+    "noData": "Không có dữ liệu trong kỳ này.",
+    "summary": {
+      "totalBookings": "Số đặt phòng",
+      "grossRevenue": "Doanh thu",
+      "netRevenue": "Sau hoa hồng",
+      "collected": "Đã thu",
+      "outstanding": "Chưa thu"
+    },
+    "bySource": {
+      "title": "Theo nguồn đặt",
+      "source": "Nguồn",
+      "bookings": "Số đặt",
+      "gross": "Doanh thu",
+      "commission": "Hoa hồng",
+      "net": "Thực nhận",
+      "collected": "Đã thu"
+    },
+    "byPayment": {
+      "title": "Theo phương thức thanh toán",
+      "cash": "Tiền mặt",
+      "bankTransfer": "Chuyển khoản",
+      "ota": "OTA thu hộ",
+      "total": "Tổng đã thu"
+    },
+    "expenses": {
+      "addExpense": "+ Thêm chi phí",
+      "count": "{{count}} chi phí",
+      "noExpenses": "Chưa có chi phí trong kỳ này.",
+      "table": {
+        "date": "Ngày",
+        "category": "Loại",
+        "amount": "Số tiền",
+        "description": "Mô tả",
+        "recordedBy": "Người ghi"
+      },
+      "pl": {
+        "title": "Lãi / Lỗ",
+        "grossRevenue": "Doanh thu thực",
+        "totalExpenses": "Tổng chi phí",
+        "net": "Lợi nhuận"
+      }
+    }
+  },
+  "dailyReport": {
+    "title": "Báo cáo hoạt động ngày",
+    "arrivals": "Nhận phòng hôm nay",
+    "departures": "Trả phòng hôm nay",
+    "inHouse": "Đang ở",
+    "tomorrowArrivals": "Nhận phòng ngày mai — chuẩn bị phòng",
+    "noArrivals": "Không có",
+    "table": {
+      "room": "Phòng",
+      "guest": "Khách",
+      "checkIn": "Nhận phòng",
+      "checkOut": "Trả phòng",
+      "ota": "Nguồn",
+      "total": "Tổng tiền",
+      "collected": "Đã thu",
+      "due": "Còn lại",
+      "status": "Trạng thái"
+    },
+    "summary": {
+      "totalBooked": "Tổng đặt",
+      "collected": "Đã thu",
+      "outstanding": "Chưa thu",
+      "housekeeping": "Dọn phòng"
+    },
+    "hk": {
+      "dirty": "{{count}} cần dọn",
+      "cleaning": "{{count}} đang dọn",
+      "ooo": "{{count}} hỏng",
+      "ready": "{{count}} sẵn sàng"
+    }
+  },
+  "addExpense": {
+    "title": "Thêm chi phí",
+    "category": "Loại chi phí",
+    "selectCategory": "-- Chọn loại --",
+    "amount": "Số tiền (VND)",
+    "date": "Ngày",
+    "description": "Mô tả (tùy chọn)",
+    "submit": "Lưu chi phí",
+    "submitting": "Đang lưu..."
+  },
+  "calendar": {
+    "prev": "← Trước",
+    "next": "Tiếp →",
+    "cancelledSection": "Đã hủy & Không đến",
+    "legend": {
+      "confirmed": "Đã đặt",
+      "checkedIn": "Đã nhận phòng",
+      "checkedOut": "Đã trả phòng"
+    },
+    "table": {
+      "room": "Phòng",
+      "guest": "Khách",
+      "checkIn": "Nhận phòng",
+      "checkOut": "Trả phòng",
+      "status": "Trạng thái",
+      "notes": "Ghi chú"
+    }
+  },
+  "housekeeping": {
+    "title": "Dọn phòng",
+    "statusLabel": "Chuyển sang",
+    "notes": "Ghi chú",
+    "update": "Cập nhật",
+    "updating": "Đang cập nhật...",
+    "confirmChange": "Đổi trạng thái phòng {{room}} thành {{status}}?"
+  },
+  "settings": {
+    "title": "Cài đặt",
+    "users": {
+      "title": "Quản lý tài khoản",
+      "newUser": "+ Thêm tài khoản",
+      "table": {
+        "name": "Họ tên",
+        "email": "Email",
+        "role": "Vai trò",
+        "status": "Trạng thái",
+        "actions": "Thao tác"
+      },
+      "active": "Hoạt động",
+      "inactive": "Vô hiệu",
+      "deactivate": "Vô hiệu hóa",
+      "reactivate": "Kích hoạt"
+    },
+    "addUser": {
+      "title": "Thêm tài khoản",
+      "name": "Họ tên",
+      "email": "Email",
+      "password": "Mật khẩu",
+      "role": "Vai trò",
+      "selectRole": "-- Chọn vai trò --",
+      "submit": "Tạo tài khoản",
+      "submitting": "Đang tạo..."
+    }
+  }
+}
