@@ -23,9 +23,6 @@ expense_category = sa.Enum(
 
 
 def upgrade() -> None:
-    payment_method.create(op.get_bind(), checkfirst=True)
-    expense_category.create(op.get_bind(), checkfirst=True)
-
     op.create_table(
         "payments",
         sa.Column("id", sa.Integer(), primary_key=True),
