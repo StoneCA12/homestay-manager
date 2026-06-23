@@ -5,5 +5,6 @@ from app.models.booking import Booking
 from app.models.housekeeping import HousekeepingLog
 from app.models.payment import Payment
 from app.models.expense import Expense
+from app.models.revoked_token import RevokedToken
 
-__all__ = ["User", "Room", "Guest", "Booking", "HousekeepingLog", "Payment", "Expense"]
+__all__ = ["User", "Room", "Guest", "Booking", "HousekeepingLog", "Payment", "Expense", "RevokedToken"]

@@ -6,6 +6,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("SECRET_KEY", "Rk7Xq2Pn9Lm4Yw3Zb6Th1Dj8Vc5Fs0Ga")
 os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "480")
 os.environ.setdefault("COOKIE_SECURE", "false")
+os.environ.setdefault("LOGIN_RATE_LIMIT", "1000/minute")
 
 from datetime import date, timedelta
 from decimal import Decimal

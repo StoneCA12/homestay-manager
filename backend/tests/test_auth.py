@@ -55,3 +55,15 @@ def test_me_invalid_token(client):
 def test_logout(client, owner):
     resp = client.post(f"{AUTH}/logout", cookies=cookie_for(owner))
     assert resp.status_code == 204
+
+
+def test_revoked_token_rejected_after_logout(client, owner):
+    # Obtain a real token via login, then logout, then verify the token is rejected.
+    login_resp = client.post(f"{AUTH}/login", json={"email": "owner@example.com", "password": "pw-owner"})
+    assert login_resp.status_code == 200
+    token = login_resp.cookies["access_token"]
+
+    client.post(f"{AUTH}/logout", cookies={"access_token": token})
+
+    me_resp = client.get(f"{AUTH}/me", cookies={"access_token": token})
+    assert me_resp.status_code == 401

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 8  # 8 hours — one work shift
     COOKIE_SECURE: bool = False  # Set True in production (requires HTTPS)
     CORS_ORIGINS: list[str] = ["http://localhost:8080", "http://localhost:5173"]
+    LOGIN_RATE_LIMIT: str = "5/minute"
 
     @field_validator("SECRET_KEY")
     @classmethod

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.models.enums import UserRole
+from app.models.revoked_token import RevokedToken
 from app.models.user import User
 
 
@@ -13,7 +14,9 @@ def get_current_user(
 ) -> User:
     if not access_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    email = decode_access_token(access_token)
+    email, jti = decode_access_token(access_token)
+    if db.get(RevokedToken, jti):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
     user = db.query(User).filter(User.email == email, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")

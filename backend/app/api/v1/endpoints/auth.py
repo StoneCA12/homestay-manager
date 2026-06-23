@@ -1,10 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.core.security import create_access_token, verify_password
+from app.core.limiter import limiter
+from app.core.security import create_access_token, extract_token_claims_unsafe, verify_password
+from app.models.revoked_token import RevokedToken
 from app.models.user import User
 from app.schemas.user import LoginRequest, UserOut
 
@@ -20,7 +24,6 @@ _COOKIE_OPTS = dict(
 
 
 def _authenticate_user(db: Session, email: str, password: str) -> User:
-    """Verify credentials and return the User. Raises HTTP 401/403 on failure."""
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
@@ -33,7 +36,6 @@ def _authenticate_user(db: Session, email: str, password: str) -> User:
 
 
 def _set_auth_cookie(response: Response, user: User) -> None:
-    """Mint a JWT and attach it as an httpOnly cookie to the response."""
     token = create_access_token(user.email)
     response.set_cookie(
         key=_COOKIE,
@@ -44,14 +46,28 @@ def _set_auth_cookie(response: Response, user: User) -> None:
 
 
 @router.post("/login", response_model=UserOut)
-def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit(settings.LOGIN_RATE_LIMIT)
+def login(request: Request, body: LoginRequest, response: Response, db: Session = Depends(get_db)):
     user = _authenticate_user(db, body.email, body.password)
     _set_auth_cookie(response, user)
     return UserOut.model_validate(user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(response: Response):
+def logout(
+    response: Response,
+    access_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    if access_token:
+        jti, expires_at = extract_token_claims_unsafe(access_token)
+        if jti and expires_at:
+            # Lazy cleanup: remove already-expired entries while inserting
+            db.query(RevokedToken).filter(
+                RevokedToken.expires_at < datetime.now(timezone.utc)
+            ).delete(synchronize_session=False)
+            db.add(RevokedToken(jti=jti, expires_at=expires_at))
+            db.commit()
     response.delete_cookie(key=_COOKIE, path="/", samesite="strict")
 
 
