@@ -6,7 +6,7 @@ export type DisplayStatus =
   | 'DIRTY' | 'CLEANING' | 'OUT_OF_ORDER' | 'OVERBOOKING'
 export type BookingStatus = 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED' | 'NO_SHOW'
 export type BookingAction = 'check_in' | 'check_out' | 'cancel' | 'no_show'
-export type OTASource = 'AGODA' | 'BOOKING_COM' | 'TRAVELOKA' | 'DIRECT'
+export type OTASource = 'AGODA' | 'BOOKING_COM' | 'TRAVELOKA' | 'ZALO' | 'DIRECT'
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'OTA_COLLECTED'
 export type ExpenseCategory = 'CLEANING' | 'SUPPLIES' | 'OTHER' | 'UTILITIES' | 'SALARIES' | 'MAINTENANCE'
 
@@ -40,11 +40,22 @@ export interface DashboardStats {
   dirty: number
 }
 
+export interface GuestLookup {
+  id: number
+  full_name: string
+  phone: string | null
+  id_type: string | null
+  id_number: string | null
+  times_stayed: number
+  notes: string | null
+}
+
 export interface Booking {
   id: number
   booking_ref: string | null
   room_number: string
   guest_name: string
+  guest_phone: string | null
   check_in_date: string
   check_out_date: string
   num_guests: number

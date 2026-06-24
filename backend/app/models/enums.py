@@ -34,6 +34,7 @@ class OTASource(str, enum.Enum):
     AGODA = "AGODA"
     BOOKING_COM = "BOOKING_COM"
     TRAVELOKA = "TRAVELOKA"
+    ZALO = "ZALO"
     DIRECT = "DIRECT"
 
 

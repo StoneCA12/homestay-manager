@@ -60,6 +60,7 @@
     "AGODA": "Agoda",
     "BOOKING_COM": "Booking.com",
     "TRAVELOKA": "Traveloka",
+    "ZALO": "Zalo",
     "DIRECT": "Trực tiếp"
   },
   "paymentMethod": {
@@ -138,10 +139,14 @@
     "otaSource": "Nguồn đặt",
     "guestName": "Tên khách",
     "guestPhone": "Số điện thoại",
+    "idType": "Loại giấy tờ",
+    "selectIdType": "-- Chọn --",
+    "idNumber": "Số giấy tờ",
     "checkIn": "Ngày nhận phòng",
     "checkOut": "Ngày trả phòng",
     "numGuests": "Số khách",
     "totalPrice": "Tổng tiền (VND)",
+    "deposit": "Tiền đặt cọc (VND)",
     "bookingRef": "Mã đặt phòng (OTA)",
     "notes": "Ghi chú",
     "submit": "Tạo đặt phòng",

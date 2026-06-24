@@ -46,6 +46,7 @@ def _to_booking_out(b: Booking) -> BookingOut:
         booking_ref=b.booking_ref,
         room_number=b.room.room_number,
         guest_name=b.guest.full_name,
+        guest_phone=b.guest.phone,
         check_in_date=b.check_in_date,
         check_out_date=b.check_out_date,
         num_guests=b.num_guests,
@@ -57,10 +58,28 @@ def _to_booking_out(b: Booking) -> BookingOut:
     )
 
 
-def _find_or_create_guest(db: Session, name: str, phone: str | None) -> Guest:
+def _find_or_create_guest(
+    db: Session,
+    name: str,
+    phone: str | None,
+    id_type: str | None = None,
+    id_number: str | None = None,
+) -> Guest:
+    # Primary dedup: phone (if provided)
+    if phone:
+        guest = db.query(Guest).filter(Guest.phone == phone).first()
+        if guest:
+            guest.full_name = name
+            if id_type:
+                guest.id_type = id_type
+            if id_number:
+                guest.id_number = id_number
+            return guest
+
+    # Fallback: case-insensitive name match
     guest = db.query(Guest).filter(func.lower(Guest.full_name) == name.lower()).first()
     if not guest:
-        guest = Guest(full_name=name, phone=phone)
+        guest = Guest(full_name=name, phone=phone, id_type=id_type, id_number=id_number)
         db.add(guest)
         db.flush()
     return guest
@@ -189,7 +208,10 @@ def create_booking(
 
     _check_room_availability(db, body.room_id, body.check_in_date, body.check_out_date)
 
-    guest = _find_or_create_guest(db, body.guest_name, body.guest_phone)
+    guest = _find_or_create_guest(
+        db, body.guest_name, body.guest_phone,
+        id_type=body.guest_id_type, id_number=body.guest_id_number,
+    )
 
     booking = Booking(
         room_id=body.room_id,
@@ -205,6 +227,21 @@ def create_booking(
         created_by_id=current_user.id,
     )
     db.add(booking)
+    db.flush()
+
+    if body.deposit_amount > 0:
+        from app.models.enums import PaymentMethod
+        deposit = Payment(
+            booking_id=booking.id,
+            amount=body.deposit_amount,
+            method=PaymentMethod.CASH,
+            notes="Tiền đặt cọc",
+            recorded_by_id=current_user.id,
+        )
+        db.add(deposit)
+        db.flush()
+        _recalculate_collected(db, booking)
+
     db.commit()
     db.refresh(booking)
     return _to_booking_out(booking)
@@ -233,6 +270,7 @@ def update_booking_status(
 
     if new_status == BookingStatus.CHECKED_OUT:
         booking.room.housekeeping_status = RoomStatus.DIRTY
+        booking.guest.times_stayed += 1
 
     db.commit()
     db.refresh(booking)

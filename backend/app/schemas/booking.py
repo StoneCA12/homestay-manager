@@ -14,6 +14,7 @@ class BookingOut(BaseModel):
     booking_ref: str | None
     room_number: str
     guest_name: str
+    guest_phone: str | None
     check_in_date: date
     check_out_date: date
     num_guests: int
@@ -43,11 +44,14 @@ class BookingCreate(BaseModel):
     room_id: int
     guest_name: str = Field(min_length=1, max_length=150)
     guest_phone: str | None = None
+    guest_id_type: str | None = None     # CCCD | CMND | PASSPORT
+    guest_id_number: str | None = None
     check_in_date: date
     check_out_date: date
     num_guests: int = Field(default=1, ge=1)
     ota_source: OTASource = OTASource.DIRECT
     total_price: Decimal = Field(ge=0)
+    deposit_amount: Decimal = Field(default=Decimal("0"), ge=0)
     booking_ref: str | None = None
     notes: str | None = None
 

@@ -12,6 +12,7 @@ class ExpenseOut(BaseModel):
     amount: Decimal
     expense_date: date
     description: str | None
+    room_id: int | None
     recorded_by_name: str | None
     created_at: datetime
 
@@ -23,3 +24,4 @@ class ExpenseCreate(BaseModel):
     amount: Decimal = Field(gt=0, description="Expense amount in VND")
     expense_date: date
     description: str | None = None
+    room_id: int | None = None

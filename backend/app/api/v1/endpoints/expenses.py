@@ -26,6 +26,7 @@ def _to_expense_out(e: Expense) -> ExpenseOut:
         amount=e.amount,
         expense_date=e.expense_date,
         description=e.description,
+        room_id=e.room_id,
         recorded_by_name=e.recorded_by.full_name if e.recorded_by else None,
         created_at=e.created_at,
     )
@@ -65,6 +66,7 @@ def create_expense(
         amount=body.amount,
         expense_date=body.expense_date,
         description=body.description,
+        room_id=body.room_id,
         recorded_by_id=current_user.id,
     )
     db.add(expense)

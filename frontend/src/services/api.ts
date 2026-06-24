@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type {
   Booking, CalendarBooking, DailyReport, DailyRevenue,
-  DashboardStats, Expense, MonthlyRevenue, Payment, Room, User,
+  DashboardStats, Expense, GuestLookup, MonthlyRevenue, Payment, Room, User,
 } from '../types'
 
 const api = axios.create({
@@ -43,11 +43,14 @@ export const bookingsApi = {
     room_id: number
     guest_name: string
     guest_phone?: string
+    guest_id_type?: string
+    guest_id_number?: string
     check_in_date: string
     check_out_date: string
     num_guests?: number
     ota_source?: string
     total_price: number
+    deposit_amount?: number
     booking_ref?: string
     notes?: string
   }) => api.post<Booking>('/bookings/', data).then((r) => r.data),
@@ -76,6 +79,11 @@ export const expensesApi = {
     api.get<Expense[]>('/expenses/', { params }).then((r) => r.data),
   create: (data: { category: string; amount: number; expense_date: string; description?: string }) =>
     api.post<Expense>('/expenses/', data).then((r) => r.data),
+}
+
+export const guestsApi = {
+  lookup: (phone: string) =>
+    api.get<GuestLookup>('/guests/lookup', { params: { phone } }).then((r) => r.data),
 }
 
 export const usersApi = {
