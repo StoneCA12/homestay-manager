@@ -130,7 +130,7 @@ def test_summary_by_source_breakdown(client, owner, db, room, guest):
     }, cookies=cookie_for(owner))
     by_source = {s["source"]: s for s in resp.json()["by_source"]}
     assert "AGODA" in by_source
-    assert Decimal(by_source["AGODA"]["commission_rate"]) == Decimal("0.18")
+    assert Decimal(by_source["AGODA"]["commission_rate"]) == Decimal("0.15")
 
 
 # ── /revenue/daily ─────────────────────────────────────────────────────────
@@ -254,7 +254,7 @@ def test_daily_report_housekeeping_counts(client, owner, db, room):
     from app.models.enums import RoomStatus
     from app.models.room import Room
     # Add a second dirty room
-    r2 = Room(room_number="201", room_type="SINGLE", floor=2, capacity=1,
+    r2 = Room(room_number="201", room_type="REGULAR", floor=2, capacity=1,
                base_price=Decimal("500000"), housekeeping_status=RoomStatus.DIRTY)
     db.add(r2); db.commit()
     resp = client.get(f"{BASE}/daily-report", cookies=cookie_for(owner))

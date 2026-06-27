@@ -13,40 +13,54 @@ function toISO(d: Date): string {
 
 interface Props {
   onClose: () => void
-  onCreated: (expense: Expense) => void
+  onSaved: (expense: Expense) => void
+  editingExpense?: Expense
 }
 
-export default function AddExpenseModal({ onClose, onCreated }: Props) {
+export default function AddExpenseModal({ onClose, onSaved, editingExpense }: Props) {
   const { t } = useTranslation()
   const { user } = useAuth()
   const isReceptionist = user?.role === 'RECEPTIONIST'
   const allowedCategories = isReceptionist ? RECEPTIONIST_CATEGORIES : ALL_CATEGORIES
+  const isEdit = !!editingExpense
 
-  const [category, setCategory] = useState<ExpenseCategory>(allowedCategories[0])
-  const [amount, setAmount] = useState('')
-  const [expenseDate, setExpenseDate] = useState(toISO(new Date()))
-  const [description, setDescription] = useState('')
+  const [category, setCategory] = useState<ExpenseCategory>(
+    editingExpense?.category ?? allowedCategories[0]
+  )
+  const [amount, setAmount] = useState(editingExpense ? String(editingExpense.amount) : '')
+  const [expenseDate, setExpenseDate] = useState(editingExpense?.expense_date ?? toISO(new Date()))
+  const [description, setDescription] = useState(editingExpense?.description ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || Number(amount) <= 0) {
-      setError('Amount must be greater than 0.')
+      setError(t('addExpense.errorAmount'))
       return
     }
     setError('')
     setSaving(true)
     try {
-      const expense = await expensesApi.create({
-        category,
-        amount: Number(amount),
-        expense_date: expenseDate,
-        description: description || undefined,
-      })
-      onCreated(expense)
+      let expense: Expense
+      if (isEdit && editingExpense) {
+        expense = await expensesApi.update(editingExpense.id, {
+          category,
+          amount: Number(amount),
+          expense_date: expenseDate,
+          description: description || undefined,
+        })
+      } else {
+        expense = await expensesApi.create({
+          category,
+          amount: Number(amount),
+          expense_date: expenseDate,
+          description: description || undefined,
+        })
+      }
+      onSaved(expense)
     } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Failed to save expense.')
+      setError(err?.response?.data?.detail ?? t('addExpense.errorSave'))
       setSaving(false)
     }
   }
@@ -55,7 +69,9 @@ export default function AddExpenseModal({ onClose, onCreated }: Props) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-bold text-slate-800">{t('addExpense.title')}</h2>
+          <h2 className="text-lg font-bold text-slate-800">
+            {isEdit ? t('addExpense.titleEdit') : t('addExpense.title')}
+          </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
         </div>
 
@@ -102,7 +118,7 @@ export default function AddExpenseModal({ onClose, onCreated }: Props) {
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Detergent and mop refill"
+              placeholder={t('addExpense.descriptionPlaceholder')}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -112,11 +128,19 @@ export default function AddExpenseModal({ onClose, onCreated }: Props) {
           )}
 
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 border border-slate-300 text-slate-700 text-sm font-medium py-2 rounded-lg hover:bg-slate-50 transition-colors">
-              Cancel
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 border border-slate-300 text-slate-700 text-sm font-medium py-2 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              {t('common.cancel')}
             </button>
-            <button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
-              {saving ? t('addExpense.submitting') : t('addExpense.submit')}
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
+            >
+              {saving ? t('addExpense.submitting') : isEdit ? t('addExpense.submitEdit') : t('addExpense.submit')}
             </button>
           </div>
         </form>

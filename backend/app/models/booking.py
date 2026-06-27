@@ -16,7 +16,7 @@ class Booking(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     booking_ref: Mapped[str | None] = mapped_column(String(100), index=True)  # OTA confirmation number
-    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"), index=True)
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id", ondelete="SET NULL"), index=True, nullable=True)
     guest_id: Mapped[int] = mapped_column(ForeignKey("guests.id"), index=True)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
@@ -38,7 +38,8 @@ class Booking(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
-    room: Mapped["Room"] = relationship(back_populates="bookings")  # noqa: F821
+    room: Mapped["Room | None"] = relationship(back_populates="bookings")  # noqa: F821
     guest: Mapped["Guest"] = relationship(back_populates="bookings")  # noqa: F821
     created_by_user: Mapped["User | None"] = relationship(back_populates="bookings_created", passive_deletes=True)  # noqa: F821
     payments: Mapped[list["Payment"]] = relationship(back_populates="booking", cascade="all, delete-orphan")  # noqa: F821
+    bike_rentals: Mapped[list["BikeRental"]] = relationship(back_populates="booking", cascade="all, delete-orphan")  # noqa: F821

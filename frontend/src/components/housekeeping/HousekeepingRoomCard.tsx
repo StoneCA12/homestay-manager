@@ -35,7 +35,7 @@ export default function HousekeepingRoomCard({ room, updating, onStatusChange }:
           {t(`roomStatus.${room.housekeeping_status}` as any)}
         </span>
       </div>
-      <p className="text-xs text-slate-500">{room.room_type} · Floor {room.floor}</p>
+      <p className="text-xs text-slate-500">{t(`roomType.${room.room_type}` as any)} · Tầng {room.floor}</p>
       <div className="flex flex-col gap-1.5 mt-auto">
         {actions.map((a) => (
           <button

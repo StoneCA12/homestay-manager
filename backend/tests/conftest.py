@@ -126,7 +126,7 @@ def cookie_for(user: User) -> dict:
 def room(db):
     r = Room(
         room_number="101",
-        room_type=RoomType.DOUBLE,
+        room_type=RoomType.WINDOW,
         floor=1,
         capacity=2,
         base_price=Decimal("1000000"),
@@ -142,7 +142,7 @@ def room(db):
 def room2(db):
     r = Room(
         room_number="102",
-        room_type=RoomType.SINGLE,
+        room_type=RoomType.REGULAR,
         floor=1,
         capacity=1,
         base_price=Decimal("800000"),

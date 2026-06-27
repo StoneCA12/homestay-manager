@@ -23,6 +23,14 @@ class SourceBreakdown(BaseModel):
     net_revenue: Decimal
 
 
+class RoomTypeBreakdown(BaseModel):
+    room_type: str          # FAMILY | WINDOW | BALCONY | REGULAR | UNASSIGNED
+    bookings: int
+    revenue: Decimal
+    net_revenue: Decimal
+    nights: int             # total booked room-nights for this type
+
+
 class PaymentMethodBreakdown(BaseModel):
     cash: Decimal
     bank_transfer: Decimal
@@ -38,15 +46,20 @@ class MonthlyRevenue(BaseModel):
     total_collected: Decimal
     total_net_revenue: Decimal
     outstanding: Decimal
+    occupancy_rate: Decimal         # 0.0–1.0, booked nights / (total_rooms × period_days)
     by_source: list[SourceBreakdown]
+    by_room_type: list[RoomTypeBreakdown]
     by_payment_method: PaymentMethodBreakdown
+    bike_revenue: Decimal = Decimal(0)
+    bike_collected: Decimal = Decimal(0)
+    bike_outstanding: Decimal = Decimal(0)
 
 
 # --- Daily Operations Report ---
 
 class BookingSummaryRow(BaseModel):
     id: int
-    room_number: str
+    room_number: str | None
     guest_name: str
     check_in_date: date
     check_out_date: date
@@ -54,6 +67,18 @@ class BookingSummaryRow(BaseModel):
     collected_amount: Decimal
     status: BookingStatus
     ota_source: OTASource
+    bike_names: list[str] = []
+    bike_outstanding: Decimal = Decimal(0)
+
+
+class BikeReturnRow(BaseModel):
+    bike_rental_id: int
+    booking_id: int
+    bike_name: str
+    plate_number: str | None
+    room_number: str | None
+    guest_name: str
+    outstanding: Decimal
 
 
 class HousekeepingSummary(BaseModel):
@@ -77,3 +102,5 @@ class DailyReport(BaseModel):
     tomorrow_arrivals: list[BookingSummaryRow]
     revenue: RevenueSummary
     housekeeping: HousekeepingSummary
+    bike_returns_today: list[BikeReturnRow] = []
+    active_bike_count: int = 0

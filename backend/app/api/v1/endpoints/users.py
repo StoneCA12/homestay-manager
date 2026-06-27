@@ -6,7 +6,7 @@ from app.core.deps import require_admin_or_above, require_owner
 from app.core.security import hash_password
 from app.models.enums import UserRole
 from app.models.user import User
-from app.schemas.user import UserCreate, UserOut
+from app.schemas.user import PasswordReset, UserCreate, UserOut
 
 router = APIRouter()
 
@@ -52,6 +52,39 @@ def deactivate_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user.is_active = not user.is_active  # toggle active/inactive
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_owner),
+):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role == UserRole.OWNER:
+        raise HTTPException(status_code=400, detail="Cannot delete another owner account")
+    db.delete(user)
+    db.commit()
+
+
+@router.patch("/{user_id}/reset-password", response_model=UserOut)
+def reset_user_password(
+    user_id: int,
+    body: PasswordReset,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_owner),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.hashed_password = hash_password(body.new_password)
     db.commit()
     db.refresh(user)
     return user

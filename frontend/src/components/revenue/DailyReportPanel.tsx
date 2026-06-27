@@ -1,4 +1,4 @@
-import { useTranslation } from 'react-i18next'
+﻿import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../contexts/AuthContext'
 import type { BookingSummaryRow, DailyReport } from '../../types'
 import { formatDate, formatVND } from '../../utils/format'
@@ -32,7 +32,7 @@ function GuestTable({ rows, showCheckIn }: { rows: BookingSummaryRow[]; showChec
           const due = Number(r.total_price) - Number(r.collected_amount)
           return (
             <tr key={r.id} className="hover:bg-slate-50">
-              <td className="py-2 font-semibold text-slate-800">{r.room_number}</td>
+              <td className="py-2 font-semibold text-slate-800">{r.room_number ?? '&#8212;'}</td>
               <td className="py-2 text-slate-700">{r.guest_name}</td>
               {showCheckIn && <td className="py-2 text-slate-500">{formatDate(r.check_in_date)}</td>}
               <td className="py-2 text-slate-500">{formatDate(r.check_out_date)}</td>
@@ -40,7 +40,7 @@ function GuestTable({ rows, showCheckIn }: { rows: BookingSummaryRow[]; showChec
               <td className="py-2 text-right text-slate-700">{formatVND(r.total_price)}</td>
               <td className="py-2 text-right text-green-700">{formatVND(r.collected_amount)}</td>
               <td className={`py-2 text-right font-semibold ${due > 0 ? 'text-red-600' : 'text-slate-400'}`}>
-                {due > 0 ? formatVND(due) : '✓'}
+                {due > 0 ? formatVND(due) : '&#10003;'}
               </td>
               <td className="py-2 text-center">
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -73,21 +73,28 @@ export default function DailyReportPanel({ report, selectedDate, onDateChange }:
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-800">{t('dailyReport.title')}</h2>
           <p className="text-sm text-slate-500 mt-0.5">{dateLabel}</p>
         </div>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => onDateChange(e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="flex items-center gap-3 print:hidden">
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => onDateChange(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={() => window.print()}
+            className="border border-slate-300 bg-white rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+          >
+            <span>&#128424;</span>
+            {t('dailyReport.print')}
+          </button>
+        </div>
       </div>
 
-      {/* Revenue & Housekeeping summary */}
       <div className={`grid gap-3 ${canSeeRevenue ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 max-w-xs'}`}>
         {canSeeRevenue && (
           <>
@@ -120,7 +127,6 @@ export default function DailyReportPanel({ report, selectedDate, onDateChange }:
         </div>
       </div>
 
-      {/* Arrivals today */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h3 className="text-sm font-bold text-slate-700 mb-3">
           {t('dailyReport.arrivals')}
@@ -129,7 +135,6 @@ export default function DailyReportPanel({ report, selectedDate, onDateChange }:
         <GuestTable rows={report.arrivals} />
       </div>
 
-      {/* Checkouts today */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h3 className="text-sm font-bold text-slate-700 mb-3">
           {t('dailyReport.departures')}
@@ -138,7 +143,6 @@ export default function DailyReportPanel({ report, selectedDate, onDateChange }:
         <GuestTable rows={report.departures} />
       </div>
 
-      {/* In-house */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h3 className="text-sm font-bold text-slate-700 mb-3">
           {t('dailyReport.inHouse')}
@@ -147,7 +151,6 @@ export default function DailyReportPanel({ report, selectedDate, onDateChange }:
         <GuestTable rows={report.in_house} showCheckIn />
       </div>
 
-      {/* Tomorrow arrivals */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h3 className="text-sm font-bold text-slate-700 mb-3">
           {t('dailyReport.tomorrowArrivals')}

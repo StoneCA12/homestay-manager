@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import DashboardPage from './pages/Dashboard'
 import BookingsPage from './pages/Bookings'
+import BikeRentalsPage from './pages/BikeRentals'
 import HousekeepingPage from './pages/Housekeeping'
 import RevenuePage from './pages/Revenue'
 import SettingsPage from './pages/Settings'
@@ -57,6 +58,10 @@ export default function App() {
       <Route
         path="/revenue"
         element={<RoleRoute roles={['OWNER', 'ADMIN']}><RevenuePage /></RoleRoute>}
+      />
+      <Route
+        path="/xe-may"
+        element={<ProtectedRoute><BikeRentalsPage /></ProtectedRoute>}
       />
       <Route
         path="/settings"

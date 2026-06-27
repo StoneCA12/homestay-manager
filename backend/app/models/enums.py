@@ -8,11 +8,10 @@ class UserRole(str, enum.Enum):
 
 
 class RoomType(str, enum.Enum):
-    SINGLE = "SINGLE"
-    DOUBLE = "DOUBLE"
-    TWIN = "TWIN"
-    TRIPLE = "TRIPLE"
-    SUITE = "SUITE"
+    FAMILY = "FAMILY"
+    WINDOW = "WINDOW"
+    BALCONY = "BALCONY"
+    REGULAR = "REGULAR"
 
 
 class RoomStatus(str, enum.Enum):
@@ -42,6 +41,18 @@ class PaymentMethod(str, enum.Enum):
     CASH = "CASH"
     BANK_TRANSFER = "BANK_TRANSFER"
     OTA_COLLECTED = "OTA_COLLECTED"
+
+
+class BikeStatus(str, enum.Enum):
+    AVAILABLE = "AVAILABLE"
+    RENTED = "RENTED"
+    MAINTENANCE = "MAINTENANCE"
+
+
+class BikeRentalStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    RETURNED = "RETURNED"
+    CANCELLED = "CANCELLED"
 
 
 class ExpenseCategory(str, enum.Enum):

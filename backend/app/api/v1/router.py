@@ -1,6 +1,6 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, bookings, expenses, guests, housekeeping, revenue, rooms, users
+from app.api.v1.endpoints import auth, bike_rentals, bookings, expenses, guests, housekeeping, revenue, rooms, settings, users
 
 router = APIRouter()
 
@@ -12,3 +12,5 @@ router.include_router(housekeeping.router, prefix="/housekeeping", tags=["housek
 router.include_router(revenue.router, prefix="/revenue", tags=["revenue"])
 router.include_router(expenses.router, prefix="/expenses", tags=["expenses"])
 router.include_router(users.router, prefix="/users", tags=["users"])
+router.include_router(settings.router, prefix="/settings", tags=["settings"])
+router.include_router(bike_rentals.router, prefix="/xe-may", tags=["xe-may"])

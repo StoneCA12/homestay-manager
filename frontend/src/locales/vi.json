@@ -15,7 +15,9 @@
     "date": "Ngày",
     "actions": "Thao tác",
     "total": "Tổng",
-    "none": "Không có"
+    "none": "Không có",
+    "edit": "Sửa",
+    "delete": "Xóa"
   },
   "nav": {
     "dashboard": "Tổng quan",
@@ -24,7 +26,8 @@
     "revenue": "Doanh thu",
     "settings": "Cài đặt",
     "logout": "Đăng xuất",
-    "loggedInAs": "Đang đăng nhập:"
+    "loggedInAs": "Đang đăng nhập:",
+    "bikrentals": "Xe máy"
   },
   "auth": {
     "email": "Email",
@@ -55,6 +58,12 @@
     "CLEANING": "Đang dọn",
     "OUT_OF_ORDER": "Hỏng",
     "OVERBOOKING": "Đặt trùng"
+  },
+  "roomType": {
+    "FAMILY": "Phòng gia đình",
+    "WINDOW": "Phòng cửa sổ",
+    "BALCONY": "Phòng ban công",
+    "REGULAR": "Phòng thường"
   },
   "ota": {
     "AGODA": "Agoda",
@@ -90,6 +99,7 @@
     "available": "Phòng trống",
     "needsCleaning": "Cần dọn",
     "otaBanner": "Có đặt phòng OTA mới chưa kiểm tra. Nhấn để xem.",
+    "occupancyWarning": "Cảnh báo công suất: Các ngày sau đây đã đặt trên 75% phòng",
     "legend": {
       "available": "Trống",
       "arrivalToday": "Nhận hôm nay",
@@ -98,11 +108,21 @@
       "dirty": "Cần dọn",
       "cleaning": "Đang dọn",
       "outOfOrder": "Hỏng"
+    },
+    "todayRevenue": {
+      "title": "Doanh thu hôm nay",
+      "totalBooked": "Tổng đặt",
+      "collected": "Đã thu",
+      "outstanding": "Chưa thu"
     }
   },
   "bookings": {
     "title": "Đặt phòng",
     "newBooking": "+ Đặt phòng mới",
+    "unassigned": "Chưa phân phòng",
+    "noRoom": "Chưa có phòng",
+    "editBooking": "Sửa",
+    "assignRoom": "Gán phòng",
     "count": "{{count}} đặt phòng",
     "loading": "Đang tải...",
     "noBookings": "Không có đặt phòng.",
@@ -127,13 +147,38 @@
       "checkOut": "Trả phòng",
       "pay": "Thu tiền",
       "cancel": "✕",
-      "noShow": "Không đến"
+      "noShow": "Không đến",
+      "cancelLabel": "Hủy đặt phòng",
+      "noShowLabel": "Không đến (No-show)"
+    },
+    "toast": {
+      "checkInSuccess": "Đã nhận phòng thành công.",
+      "checkOutSuccess": "Đã trả phòng thành công.",
+      "cancelSuccess": "Đã hủy đặt phòng.",
+      "noShowSuccess": "Đã đánh dấu không đến.",
+      "bookingCreated": "Đặt phòng mới đã được tạo.",
+      "bookingSaved": "Đã lưu thay đổi.",
+      "paymentSaved": "Đã ghi nhận thanh toán.",
+      "actionFailed": "Thao tác thất bại."
+    },
+    "dialog": {
+      "noRoomTitle": "Chưa có phòng",
+      "noRoomMessage": "Đặt phòng này chưa được gán phòng. Vui lòng chọn phòng trước khi nhận phòng.",
+      "noRoomConfirm": "Sửa đặt phòng",
+      "cancelTitle": "Xác nhận hủy đặt phòng",
+      "cancelMessage": "Hủy đặt phòng của {{guest}} tại phòng {{room}}?",
+      "cancelConfirm": "Hủy đặt phòng",
+      "cancelDismiss": "Không"
     },
     "paid": "✓ Đã thanh toán",
+    "unpaidOverdue": "Chưa thanh toán — cần gọi khách",
     "cancelConfirm": "Hủy đặt phòng của {{guest}} tại phòng {{room}}?"
   },
   "bookingForm": {
     "title": "Đặt phòng mới",
+    "editTitle": "Sửa đặt phòng",
+    "unassigned": "Chưa phân phòng",
+    "selectRoomOptional": "-- Chọn sau khi nhận phòng --",
     "room": "Phòng",
     "selectRoom": "-- Chọn phòng --",
     "otaSource": "Nguồn đặt",
@@ -202,6 +247,28 @@
       "ota": "OTA thu hộ",
       "total": "Tổng đã thu"
     },
+    "occupancyRate": "Công suất phòng",
+    "byRoomType": {
+      "title": "Theo loại phòng",
+      "roomType": "Loại phòng",
+      "bookings": "Đặt phòng",
+      "nights": "Đêm",
+      "gross": "Doanh thu",
+      "net": "Thực nhận",
+      "UNASSIGNED": "Chưa phân phòng"
+    },
+    "taxReport": {
+      "title": "Báo cáo thuế",
+      "period": "Kỳ",
+      "grossRevenue": "Doanh thu gộp",
+      "otaCommission": "Hoa hồng OTA",
+      "netRevenue": "Doanh thu thực",
+      "totalExpenses": "Chi phí",
+      "profit": "Lợi nhuận",
+      "print": "In báo cáo",
+      "note": "Dùng cho khai báo thuế. Chỉ chủ/quản lý xem được.",
+      "occupancyRate": "Công suất"
+    },
     "expenses": {
       "addExpense": "+ Thêm chi phí",
       "count": "{{count}} chi phí",
@@ -218,6 +285,17 @@
         "grossRevenue": "Doanh thu thực",
         "totalExpenses": "Tổng chi phí",
         "net": "Lợi nhuận"
+      },
+      "deleteDialog": {
+        "title": "Xóa chi phí?",
+        "message": "Xóa khoản {{amount}} ({{category}})? Thao tác không thể hoàn tác.",
+        "confirm": "Xóa"
+      },
+      "toast": {
+        "created": "Đã thêm chi phí.",
+        "updated": "Đã cập nhật chi phí.",
+        "deleted": "Đã xóa chi phí.",
+        "deleteFailed": "Không thể xóa chi phí."
       }
     }
   },
@@ -250,22 +328,33 @@
       "cleaning": "{{count}} đang dọn",
       "ooo": "{{count}} hỏng",
       "ready": "{{count}} sẵn sàng"
-    }
+    },
+    "print": "In báo cáo ngày"
   },
   "addExpense": {
     "title": "Thêm chi phí",
+    "titleEdit": "Sửa chi phí",
     "category": "Loại chi phí",
     "selectCategory": "-- Chọn loại --",
     "amount": "Số tiền (VND)",
     "date": "Ngày",
     "description": "Mô tả (tùy chọn)",
+    "descriptionPlaceholder": "VD: Mua nước tẩy, giẻ lau",
     "submit": "Lưu chi phí",
-    "submitting": "Đang lưu..."
+    "submitEdit": "Cập nhật",
+    "submitting": "Đang lưu...",
+    "errorAmount": "Số tiền phải lớn hơn 0.",
+    "errorSave": "Không thể lưu chi phí."
   },
   "calendar": {
     "prev": "← Trước",
     "next": "Tiếp →",
     "cancelledSection": "Đã hủy & Không đến",
+    "viewGrid": "Lịch tháng",
+    "viewGantt": "Theo phòng",
+    "viewYear": "Cả năm",
+    "yearTitle": "Lịch đặt phòng năm {{year}}",
+    "occupancyLabel": "{{count}} đặt phòng",
     "legend": {
       "confirmed": "Đã đặt",
       "checkedIn": "Đã nhận phòng",
@@ -290,6 +379,41 @@
   },
   "settings": {
     "title": "Cài đặt",
+    "commission": {
+      "title": "Hoa hồng OTA",
+      "description": "Tỷ lệ hoa hồng được trừ khỏi doanh thu thực nhận.",
+      "source": "Nguồn",
+      "rate": "Tỷ lệ (%)",
+      "edit": "Sửa",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "saving": "Đang lưu..."
+    },
+    "rooms": {
+      "title": "Quản lý phòng",
+      "addRoom": "+ Thêm phòng",
+      "editRoom": "Sửa",
+      "table": {
+        "number": "Số phòng",
+        "type": "Loại phòng",
+        "floor": "Tầng",
+        "capacity": "Sức chứa",
+        "basePrice": "Giá gốc",
+        "status": "Trạng thái"
+      },
+      "modal": {
+        "addTitle": "Thêm phòng mới",
+        "editTitle": "Sửa thông tin phòng",
+        "submit": "Lưu",
+        "submitting": "Đang lưu...",
+        "number": "Số phòng",
+        "type": "Loại phòng",
+        "floor": "Tầng",
+        "capacity": "Số khách tối đa",
+        "basePrice": "Giá gốc (VND)",
+        "housekeepingStatus": "Trạng thái dọn phòng"
+      }
+    },
     "users": {
       "title": "Quản lý tài khoản",
       "newUser": "+ Thêm tài khoản",
@@ -303,7 +427,42 @@
       "active": "Hoạt động",
       "inactive": "Vô hiệu",
       "deactivate": "Vô hiệu hóa",
-      "reactivate": "Kích hoạt"
+      "reactivate": "Kích hoạt",
+      "resetPassword": "Đặt lại MK",
+      "deleteDialog": {
+        "title": "Xóa tài khoản?",
+        "message": "Xóa tài khoản của {{name}}? Thao tác này không thể hoàn tác.",
+        "confirm": "Xóa tài khoản"
+      },
+      "resetPasswordDialog": {
+        "title": "Đặt lại mật khẩu — {{name}}"
+      },
+      "toast": {
+        "deleted": "Đã xóa tài khoản.",
+        "deleteFailed": "Không thể xóa tài khoản.",
+        "passwordReset": "Đã đặt lại mật khẩu.",
+        "passwordChanged": "Đã đổi mật khẩu thành công."
+      }
+    },
+    "toast": {
+      "rateSaved": "Đã lưu tỷ lệ hoa hồng.",
+      "saveFailed": "Không thể lưu.",
+      "roomSaved": "Đã cập nhật thông tin phòng.",
+      "roomCreated": "Đã thêm phòng mới."
+    },
+    "myAccount": {
+      "title": "Tài khoản của tôi",
+      "changePassword": "Đổi mật khẩu"
+    },
+    "password": {
+      "changeTitle": "Đổi mật khẩu",
+      "currentPassword": "Mật khẩu hiện tại",
+      "newPassword": "Mật khẩu mới",
+      "confirmPassword": "Xác nhận mật khẩu mới",
+      "save": "Lưu",
+      "errorMinLength": "Mật khẩu mới phải có ít nhất 8 ký tự.",
+      "errorMismatch": "Mật khẩu xác nhận không khớp.",
+      "errorGeneral": "Không thể đổi mật khẩu."
     },
     "addUser": {
       "title": "Thêm tài khoản",

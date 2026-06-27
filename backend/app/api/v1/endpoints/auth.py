@@ -7,10 +7,10 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.limiter import limiter
-from app.core.security import create_access_token, extract_token_claims_unsafe, verify_password
+from app.core.security import create_access_token, extract_token_claims_unsafe, hash_password, verify_password
 from app.models.revoked_token import RevokedToken
 from app.models.user import User
-from app.schemas.user import LoginRequest, UserOut
+from app.schemas.user import LoginRequest, PasswordChange, UserOut
 
 router = APIRouter()
 
@@ -74,3 +74,17 @@ def logout(
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    body: PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not verify_password(body.old_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Mật khẩu hiện tại không đúng")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Mật khẩu mới phải có ít nhất 8 ký tự")
+    current_user.hashed_password = hash_password(body.new_password)
+    db.commit()

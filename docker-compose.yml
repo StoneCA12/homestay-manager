@@ -28,6 +28,8 @@ services:
       SECRET_KEY: ${SECRET_KEY}
     ports:
       - "8000:8000"
+    volumes:
+      - backend_logs:/logs
 
   frontend:
     build: ./frontend
@@ -48,3 +50,4 @@ services:
 
 volumes:
   postgres_data:
+  backend_logs:

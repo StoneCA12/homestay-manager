@@ -30,7 +30,7 @@ def test_list_room_fields(client, owner, room):
     resp = client.get(f"{BASE}/", cookies=cookie_for(owner))
     r = resp.json()[0]
     assert r["id"] == room.id
-    assert r["room_type"] == "DOUBLE"
+    assert r["room_type"] == "WINDOW"
     assert r["floor"] == 1
     assert r["capacity"] == 2
     assert Decimal(r["base_price"]) == Decimal("1000000")

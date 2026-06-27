@@ -29,6 +29,7 @@ class RoomOut(BaseModel):
     display_status: DisplayStatus
     guest_name: str | None = None
     check_out_date: date | None = None
+    active_bike_names: list[str] = []
 
     model_config = {"from_attributes": True}
 
@@ -40,3 +41,21 @@ class DashboardStats(BaseModel):
     arrivals_today: int
     checkouts_today: int
     dirty: int
+    occupancy_warning_dates: list[date] = []  # upcoming days with >= 75% occupancy
+
+
+class RoomCreate(BaseModel):
+    room_number: str
+    room_type: RoomType
+    floor: int = 1
+    capacity: int = 2
+    base_price: Decimal
+
+
+class RoomUpdate(BaseModel):
+    room_number: str | None = None
+    room_type: RoomType | None = None
+    floor: int | None = None
+    capacity: int | None = None
+    base_price: Decimal | None = None
+    housekeeping_status: RoomStatus | None = None

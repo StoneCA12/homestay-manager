@@ -225,3 +225,9 @@ frontend/build/
 
 # Docker volumes
 postgres_data/
+
+# Database backups
+backups/
+
+# TLS certificates (generated locally)
+nginx/ssl/

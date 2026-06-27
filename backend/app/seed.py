@@ -5,6 +5,7 @@ from decimal import Decimal
 from app.core.database import SessionLocal
 from app.core.security import hash_password
 from app.models.booking import Booking
+from app.models.commission_rate import CommissionRate
 from app.models.enums import BookingStatus, OTASource, RoomStatus, RoomType, UserRole
 from app.models.guest import Guest
 from app.models.room import Room
@@ -32,14 +33,28 @@ def seed() -> None:
         )
         db.add_all([owner, receptionist])
 
-        # ── rooms ─────────────────────────────────────────────────────────────
+        # ── rooms (19 rooms: 1 family, 5 window, 6 balcony, 7 regular) ────────
         rooms_data = [
-            ("101", RoomType.SINGLE,  1, 1, 350_000,  RoomStatus.AVAILABLE),
-            ("102", RoomType.DOUBLE,  1, 2, 500_000,  RoomStatus.AVAILABLE),
-            ("103", RoomType.TWIN,    1, 2, 500_000,  RoomStatus.DIRTY),
-            ("201", RoomType.DOUBLE,  2, 2, 550_000,  RoomStatus.AVAILABLE),
-            ("202", RoomType.TRIPLE,  2, 3, 700_000,  RoomStatus.AVAILABLE),
-            ("203", RoomType.SUITE,   2, 4, 1_200_000, RoomStatus.CLEANING),
+            # (room_number, room_type,        floor, capacity, base_price,   hk_status)
+            ("101", RoomType.FAMILY,  1, 4, 1_200_000, RoomStatus.AVAILABLE),
+            ("102", RoomType.WINDOW,  1, 2,   550_000, RoomStatus.AVAILABLE),
+            ("103", RoomType.WINDOW,  1, 2,   550_000, RoomStatus.DIRTY),
+            ("104", RoomType.REGULAR, 1, 2,   400_000, RoomStatus.AVAILABLE),
+            ("105", RoomType.REGULAR, 1, 2,   400_000, RoomStatus.AVAILABLE),
+            ("201", RoomType.BALCONY, 2, 2,   650_000, RoomStatus.AVAILABLE),
+            ("202", RoomType.BALCONY, 2, 2,   650_000, RoomStatus.AVAILABLE),
+            ("203", RoomType.WINDOW,  2, 2,   550_000, RoomStatus.CLEANING),
+            ("204", RoomType.WINDOW,  2, 2,   550_000, RoomStatus.AVAILABLE),
+            ("205", RoomType.REGULAR, 2, 2,   400_000, RoomStatus.AVAILABLE),
+            ("301", RoomType.BALCONY, 3, 2,   650_000, RoomStatus.AVAILABLE),
+            ("302", RoomType.BALCONY, 3, 2,   650_000, RoomStatus.AVAILABLE),
+            ("303", RoomType.BALCONY, 3, 2,   650_000, RoomStatus.AVAILABLE),
+            ("304", RoomType.WINDOW,  3, 2,   550_000, RoomStatus.AVAILABLE),
+            ("305", RoomType.REGULAR, 3, 2,   400_000, RoomStatus.AVAILABLE),
+            ("401", RoomType.BALCONY, 4, 2,   650_000, RoomStatus.AVAILABLE),
+            ("402", RoomType.BALCONY, 4, 2,   650_000, RoomStatus.AVAILABLE),
+            ("403", RoomType.REGULAR, 4, 2,   400_000, RoomStatus.AVAILABLE),
+            ("404", RoomType.REGULAR, 4, 2,   400_000, RoomStatus.AVAILABLE),
         ]
         rooms = []
         for num, rtype, floor, cap, price, hk in rooms_data:
@@ -54,30 +69,34 @@ def seed() -> None:
             db.add(r)
             rooms.append(r)
 
-        # ── guests ────────────────────────────────────────────────────────────
-        guests_data = [
-            ("Nguyen Van An",    "nvanan@gmail.com",       "+84901111111", "Vietnamese"),
-            ("Tran Thi Bich",    "tranbich@gmail.com",     "+84912222222", "Vietnamese"),
-            ("James Anderson",   "james.a@gmail.com",      "+12125551234", "American"),
-            ("Li Wei",           "liwei88@gmail.com",      "+8613011112222","Chinese"),
+        # ── commission rates ───────────────────────────────────────────────────
+        commission_data = [
+            ("AGODA",       Decimal("0.1500")),
+            ("BOOKING_COM", Decimal("0.1000")),
+            ("TRAVELOKA",   Decimal("0.1200")),
+            ("ZALO",        Decimal("0.0000")),
+            ("DIRECT",      Decimal("0.0000")),
         ]
+        for ota_source, rate in commission_data:
+            db.add(CommissionRate(ota_source=ota_source, rate=rate))
+
+        # ── guests ────────────────────────────────────────────────────────────
         guests = []
-        for name, email, phone, nat in guests_data:
-            g = Guest(full_name=name, email=email, phone=phone, nationality=nat)
+        for name, phone in [
+            ("Nguyen Van An",  "0901111111"),
+            ("Tran Thi Bich",  "0912222222"),
+            ("Le Minh Duc",    "0923333333"),
+            ("Pham Thi Hoa",   "0934444444"),
+        ]:
+            g = Guest(full_name=name, phone=phone)
             db.add(g)
             guests.append(g)
 
-        db.flush()  # get IDs before creating bookings
+        db.flush()
 
         today = date.today()
 
         # ── bookings ──────────────────────────────────────────────────────────
-        # 101 → occupied (checked in yesterday, leaves in 2 days)
-        # 102 → arrival today
-        # 103 → checkout today  (+ dirty housekeeping from fixture above)
-        # 201 → available (no booking)
-        # 202 → upcoming (tomorrow arrival)
-        # 203 → cleaning (no active booking)
         bookings = [
             Booking(
                 room_id=rooms[0].id, guest_id=guests[0].id,
@@ -85,7 +104,7 @@ def seed() -> None:
                 check_out_date=today + timedelta(days=2),
                 status=BookingStatus.CHECKED_IN,
                 ota_source=OTASource.AGODA,
-                total_price=Decimal("1_050_000"), collected_amount=Decimal("1_050_000"),
+                total_price=Decimal("3_600_000"), collected_amount=Decimal("3_600_000"),
                 booking_ref="AGD-001234",
             ),
             Booking(
@@ -94,24 +113,25 @@ def seed() -> None:
                 check_out_date=today + timedelta(days=3),
                 status=BookingStatus.CONFIRMED,
                 ota_source=OTASource.BOOKING_COM,
-                total_price=Decimal("1_500_000"), collected_amount=Decimal("0"),
+                total_price=Decimal("1_650_000"), collected_amount=Decimal("0"),
                 booking_ref="BKG-005678",
             ),
+            # Unassigned booking (room to be assigned at check-in)
             Booking(
-                room_id=rooms[2].id, guest_id=guests[2].id,
-                check_in_date=today - timedelta(days=2),
-                check_out_date=today,
-                status=BookingStatus.CHECKED_IN,
-                ota_source=OTASource.DIRECT,
-                total_price=Decimal("1_000_000"), collected_amount=Decimal("1_000_000"),
+                room_id=None, guest_id=guests[2].id,
+                check_in_date=today + timedelta(days=1),
+                check_out_date=today + timedelta(days=3),
+                status=BookingStatus.CONFIRMED,
+                ota_source=OTASource.ZALO,
+                total_price=Decimal("800_000"), collected_amount=Decimal("0"),
             ),
             Booking(
-                room_id=rooms[4].id, guest_id=guests[3].id,
+                room_id=rooms[5].id, guest_id=guests[3].id,
                 check_in_date=today + timedelta(days=1),
                 check_out_date=today + timedelta(days=4),
                 status=BookingStatus.CONFIRMED,
                 ota_source=OTASource.TRAVELOKA,
-                total_price=Decimal("2_100_000"), collected_amount=Decimal("0"),
+                total_price=Decimal("1_950_000"), collected_amount=Decimal("0"),
                 booking_ref="TVL-009012",
             ),
         ]
