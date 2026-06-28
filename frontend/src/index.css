@@ -1,3 +1,100 @@
+@import '@fontsource-variable/geist';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+  Design tokens ported from the capstone-team-16 design system.
+  Colors are stored as raw oklch channels (lightness chroma hue) so that
+  Tailwind v3 opacity modifiers work, e.g. bg-primary/80 -> oklch(... / 0.8).
+*/
+@layer base {
+  :root {
+    --radius: 0.625rem;
+
+    --background: 0.99 0.002 264;
+    --foreground: 0.28 0.03 264;
+    --card: 1 0 0;
+    --card-foreground: 0.28 0.03 264;
+    --popover: 1 0 0;
+    --popover-foreground: 0.28 0.03 264;
+    --primary: 0.546 0.245 262.881;
+    --primary-foreground: 0.985 0 0;
+    --secondary: 0.967 0.018 264.052;
+    --secondary-foreground: 0.488 0.243 264.376;
+    --muted: 0.965 0.012 264;
+    --muted-foreground: 0.556 0.03 264;
+    --accent: 0.955 0.025 264;
+    --accent-foreground: 0.488 0.243 264.376;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+    --border: 0.922 0.015 264;
+    --input: 0.922 0.015 264;
+    --ring: 0.623 0.214 259.815;
+
+    --sidebar: 0.995 0.004 264;
+    --sidebar-foreground: 0.35 0.03 264;
+    --sidebar-primary: 0.546 0.245 262.881;
+    --sidebar-primary-foreground: 0.985 0 0;
+    --sidebar-accent: 0.955 0.035 264;
+    --sidebar-accent-foreground: 0.488 0.243 264.376;
+    --sidebar-border: 0.922 0.015 264;
+    --sidebar-ring: 0.623 0.214 259.815;
+
+    --chart-1: 0.546 0.245 262.881;
+    --chart-2: 0.623 0.214 259.815;
+    --chart-3: 0.488 0.243 264.376;
+    --chart-4: 0.696 0.17 162.48;
+    --chart-5: 0.769 0.188 70.08;
+  }
+
+  .dark {
+    --background: 0.145 0 0;
+    --foreground: 0.985 0 0;
+    --card: 0.205 0 0;
+    --card-foreground: 0.985 0 0;
+    --popover: 0.205 0 0;
+    --popover-foreground: 0.985 0 0;
+    --primary: 0.922 0 0;
+    --primary-foreground: 0.205 0 0;
+    --secondary: 0.269 0 0;
+    --secondary-foreground: 0.985 0 0;
+    --muted: 0.269 0 0;
+    --muted-foreground: 0.708 0 0;
+    --accent: 0.269 0 0;
+    --accent-foreground: 0.985 0 0;
+    --destructive: 0.704 0.191 22.216;
+    --destructive-foreground: 0.985 0 0;
+    --border: 0.3 0 0;
+    --input: 0.32 0 0;
+    --ring: 0.556 0 0;
+
+    --sidebar: 0.205 0 0;
+    --sidebar-foreground: 0.985 0 0;
+    --sidebar-primary: 0.488 0.243 264.376;
+    --sidebar-primary-foreground: 0.985 0 0;
+    --sidebar-accent: 0.269 0 0;
+    --sidebar-accent-foreground: 0.985 0 0;
+    --sidebar-border: 0.3 0 0;
+    --sidebar-ring: 0.556 0 0;
+
+    --chart-1: 0.87 0 0;
+    --chart-2: 0.556 0 0;
+    --chart-3: 0.439 0 0;
+    --chart-4: 0.371 0 0;
+    --chart-5: 0.269 0 0;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}

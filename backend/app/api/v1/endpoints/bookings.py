@@ -137,9 +137,15 @@ def list_bookings(
     start_date: date | None = None,
     end_date: date | None = None,
     search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    # Clamp pagination params to safe bounds (hard cap protects the DB).
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+
     q = db.query(Booking).join(Booking.guest)
     if booking_status:
         q = q.filter(Booking.status == booking_status)
@@ -149,7 +155,13 @@ def list_bookings(
         q = q.filter(Booking.check_in_date <= end_date)
     if search:
         q = q.filter(Guest.full_name.ilike(f"%{search}%"))
-    return [_to_booking_out(b) for b in q.order_by(Booking.check_in_date.desc()).limit(200)]
+    rows = (
+        q.order_by(Booking.check_in_date.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    return [_to_booking_out(b) for b in rows]
 
 
 @router.get("/today", response_model=list[BookingOut])

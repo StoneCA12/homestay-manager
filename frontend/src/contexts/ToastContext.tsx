@@ -38,8 +38,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white min-w-64 max-w-sm animate-fade-in
-              ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}
+            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white min-w-64 max-w-sm animate-in slide-in-from-bottom-2 fade-in
+              ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-destructive'}`}
           >
             <span className="text-base shrink-0">{toast.type === 'success' ? '✓' : '⚠'}</span>
             <span className="flex-1 leading-snug">{toast.message}</span>

@@ -41,7 +41,7 @@ export const roomsApi = {
 }
 
 export const bookingsApi = {
-  list: (params?: { booking_status?: string; start_date?: string; end_date?: string; search?: string }) =>
+  list: (params?: { booking_status?: string; start_date?: string; end_date?: string; search?: string; limit?: number; offset?: number }) =>
     api.get<Booking[]>('/bookings/', { params }).then((r) => r.data),
   today: () => api.get<Booking[]>('/bookings/today').then((r) => r.data),
   getById: (id: number) => api.get<Booking>(`/bookings/${id}`).then((r) => r.data),

@@ -78,15 +78,15 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
     }
   }
 
-  const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-  const labelCls = 'block text-xs font-semibold text-slate-600 mb-1'
+  const inputCls = 'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+  const labelCls = 'mb-1 block text-xs font-semibold text-muted-foreground'
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-bold text-slate-800">{t('bookingForm.editTitle')} #{booking.id}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <h2 className="text-lg font-bold text-foreground">{t('bookingForm.editTitle')} #{booking.id}</h2>
+          <button onClick={onClose} className="text-xl leading-none text-muted-foreground hover:text-foreground">×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -179,16 +179,16 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+            <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
           )}
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 border border-slate-300 text-slate-700 text-sm font-medium py-2 rounded-lg hover:bg-slate-50 transition-colors">
+              className="flex-1 rounded-lg border border-input py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted">
               {t('common.cancel')}
             </button>
             <button type="submit" disabled={submitting}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+              className="flex-1 rounded-lg bg-primary py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/80 disabled:opacity-60">
               {submitting ? t('common.loading') : t('common.save')}
             </button>
           </div>

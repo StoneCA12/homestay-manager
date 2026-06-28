@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, Check } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
 import RoomCard from '../../components/rooms/RoomCard'
 import { revenueApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import type { BikeReturnRow, BookingSummaryRow, DailyReport, DashboardStats, Room } from '../../types'
 import { formatVND } from '../../utils/format'
+import { cn } from '@/lib/utils'
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -29,18 +31,20 @@ export default function DashboardPage() {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 
-  const goBooking = (_id: number) => navigate('/bookings')
+  const goBooking = (id: number) => navigate('/bookings', { state: { openBookingId: id } })
   const goBikes = () => navigate('/xe-may')
 
   return (
     <Layout>
-      <div className="p-6 max-w-6xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 p-6">
 
         {/* ── Header ── */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-800 capitalize">{today}</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Chào {user?.full_name?.split(' ').pop()} — đây là tình hình hôm nay</p>
+            <h1 className="text-xl font-semibold capitalize tracking-tight text-foreground">{today}</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Chào {user?.full_name?.split(' ').pop()} — đây là tình hình hôm nay
+            </p>
           </div>
         </div>
 
@@ -60,11 +64,11 @@ export default function DashboardPage() {
 
         {/* ── Occupancy warning ── */}
         {stats && stats.occupancy_warning_dates.length > 0 && (
-          <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 text-orange-800 text-sm px-4 py-3 rounded-xl">
-            <span className="mt-0.5">🔴</span>
+          <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
             <div>
               <p className="font-semibold">Cảnh báo kín phòng sắp tới</p>
-              <p className="font-normal mt-0.5 text-orange-700">
+              <p className="mt-0.5 font-normal text-amber-700">
                 {stats.occupancy_warning_dates.map((d) =>
                   new Date(d).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric' })
                 ).join(' · ')}
@@ -74,9 +78,9 @@ export default function DashboardPage() {
         )}
 
         {loading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-2xl border border-slate-100 bg-slate-50 h-40 animate-pulse" />
+              <div key={i} className="h-40 animate-pulse rounded-xl bg-muted" />
             ))}
           </div>
         )}
@@ -84,79 +88,48 @@ export default function DashboardPage() {
         {!loading && report && (
           <>
             {/* ── Today's ops grid ── */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
-              {/* Nhận phòng hôm nay */}
-              <OpsPanel
-                title="Nhận phòng hôm nay"
-                icon="⬇️"
-                count={report.arrivals.length}
-                emptyText="Không có khách nhận phòng hôm nay"
-                accentColor="yellow"
-              >
+              <OpsPanel title="Nhận phòng hôm nay" icon="⬇️" count={report.arrivals.length} emptyText="Không có khách nhận phòng hôm nay" accentColor="yellow">
                 {report.arrivals.map((b) => (
                   <BookingRow key={b.id} row={b} onClick={() => goBooking(b.id)} />
                 ))}
               </OpsPanel>
 
-              {/* Trả phòng hôm nay */}
-              <OpsPanel
-                title="Trả phòng hôm nay"
-                icon="⬆️"
-                count={report.departures.length}
-                emptyText="Không có khách trả phòng hôm nay"
-                accentColor="blue"
-              >
+              <OpsPanel title="Trả phòng hôm nay" icon="⬆️" count={report.departures.length} emptyText="Không có khách trả phòng hôm nay" accentColor="blue">
                 {report.departures.map((b) => (
                   <BookingRow key={b.id} row={b} onClick={() => goBooking(b.id)} />
                 ))}
               </OpsPanel>
 
-              {/* Đang ở */}
-              <OpsPanel
-                title="Đang lưu trú"
-                icon="🏠"
-                count={report.in_house.length}
-                emptyText="Không có khách đang lưu trú"
-                accentColor="green"
-              >
+              <OpsPanel title="Đang lưu trú" icon="🏠" count={report.in_house.length} emptyText="Không có khách đang lưu trú" accentColor="green">
                 {report.in_house.map((b) => (
                   <BookingRow key={b.id} row={b} onClick={() => goBooking(b.id)} showCheckout />
                 ))}
               </OpsPanel>
 
-              {/* Xe máy trả hôm nay — only shows when relevant */}
               {report.bike_returns_today.length > 0 ? (
-                <OpsPanel
-                  title="Xe máy trả hôm nay"
-                  icon="🏍️"
-                  count={report.bike_returns_today.length}
-                  accentColor="purple"
-                >
+                <OpsPanel title="Xe máy trả hôm nay" icon="🏍️" count={report.bike_returns_today.length} accentColor="purple">
                   {report.bike_returns_today.map((r) => (
                     <BikeReturnRowItem key={r.bike_rental_id} row={r} onClick={goBikes} />
                   ))}
                 </OpsPanel>
               ) : report.active_bike_count > 0 ? (
-                <OpsPanel
-                  title="Xe máy đang thuê"
-                  icon="🏍️"
-                  count={report.active_bike_count}
-                  emptyText=""
-                  accentColor="purple"
-                >
-                  <p className="text-sm text-slate-500 py-1">
+                <OpsPanel title="Xe máy đang thuê" icon="🏍️" count={report.active_bike_count} emptyText="" accentColor="purple">
+                  <p className="py-1 text-sm text-muted-foreground">
                     {report.active_bike_count} xe đang được thuê — không có xe trả hôm nay
                   </p>
                 </OpsPanel>
-              ) : null}
+              ) : (
+                <OpsPanel title="Xe máy" icon="🏍️" count={0} emptyText="Không có xe đang thuê" accentColor="slate" />
+              )}
 
             </div>
 
             {/* ── Tomorrow arrivals (compact) ── */}
             {report.tomorrow_arrivals.length > 0 && (
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Nhận phòng ngày mai ({report.tomorrow_arrivals.length})
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -164,9 +137,9 @@ export default function DashboardPage() {
                     <button
                       key={b.id}
                       onClick={() => goBooking(b.id)}
-                      className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
                     >
-                      <span className="font-semibold">{b.room_number ? `P.${b.room_number}` : '—'}</span>
+                      <span className="font-semibold text-foreground">{b.room_number ? `P.${b.room_number}` : '—'}</span>
                       <span>{b.guest_name}</span>
                     </button>
                   ))}
@@ -178,17 +151,17 @@ export default function DashboardPage() {
 
         {/* ── Room grid ── */}
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Sơ đồ phòng</p>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sơ đồ phòng</p>
           {/* Legend */}
-          <div className="flex flex-wrap gap-3 mb-4">
+          <div className="mb-4 flex flex-wrap gap-3">
             {LEGEND.map(({ label, dot }) => (
-              <span key={label} className="flex items-center gap-1.5 text-xs text-slate-500">
-                <span className={`w-2.5 h-2.5 rounded-full ${dot}`} />
+              <span key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
                 {label}
               </span>
             ))}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {rooms.map((room) => (
               <RoomCard key={room.id} room={room} />
             ))}
@@ -203,12 +176,12 @@ export default function DashboardPage() {
 // ── Sub-components ─────────────────────────────────────────────
 
 const ACCENT: Record<string, { panel: string; badge: string; header: string }> = {
-  yellow: { panel: 'border-yellow-200 bg-yellow-50/40', badge: 'bg-yellow-100 text-yellow-700', header: 'text-yellow-700' },
-  blue:   { panel: 'border-blue-200 bg-blue-50/40',     badge: 'bg-blue-100 text-blue-700',     header: 'text-blue-700'   },
-  green:  { panel: 'border-green-200 bg-green-50/40',   badge: 'bg-green-100 text-green-700',   header: 'text-green-700'  },
+  yellow: { panel: 'border-amber-200 bg-amber-50/40', badge: 'bg-amber-100 text-amber-700', header: 'text-amber-700' },
+  blue:   { panel: 'border-blue-200 bg-blue-50/40',   badge: 'bg-blue-100 text-blue-700',   header: 'text-blue-700'  },
+  green:  { panel: 'border-emerald-200 bg-emerald-50/40', badge: 'bg-emerald-100 text-emerald-700', header: 'text-emerald-700' },
   purple: { panel: 'border-purple-200 bg-purple-50/40', badge: 'bg-purple-100 text-purple-700', header: 'text-purple-700' },
-  red:    { panel: 'border-red-200 bg-red-50/40',       badge: 'bg-red-100 text-red-700',       header: 'text-red-700'    },
-  slate:  { panel: 'border-slate-200 bg-slate-50/40',   badge: 'bg-slate-100 text-slate-600',   header: 'text-slate-600'  },
+  red:    { panel: 'border-red-200 bg-red-50/40',     badge: 'bg-red-100 text-red-700',     header: 'text-red-700'   },
+  slate:  { panel: 'border-border bg-muted/30',       badge: 'bg-muted text-muted-foreground', header: 'text-muted-foreground' },
 }
 
 function OpsPanel({
@@ -223,20 +196,20 @@ function OpsPanel({
 }) {
   const c = ACCENT[accentColor]
   return (
-    <div className={`rounded-2xl border ${c.panel} p-4`}>
-      <div className="flex items-center justify-between mb-3">
+    <div className={cn('rounded-xl border p-4 ring-1 ring-foreground/5', c.panel)}>
+      <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-base">{icon}</span>
-          <p className={`text-sm font-bold ${c.header}`}>{title}</p>
+          <p className={cn('text-sm font-semibold', c.header)}>{title}</p>
         </div>
         {count > 0 && (
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${c.badge}`}>{count}</span>
+          <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', c.badge)}>{count}</span>
         )}
       </div>
       {count === 0 && emptyText ? (
-        <p className="text-xs text-slate-400 py-1">{emptyText}</p>
+        <p className="py-1 text-xs text-muted-foreground">{emptyText}</p>
       ) : (
-        <div className="space-y-0 divide-y divide-slate-100">{children}</div>
+        <div className="divide-y divide-border/60">{children}</div>
       )}
     </div>
   )
@@ -256,34 +229,31 @@ function BookingRow({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left py-2.5 hover:bg-white/60 rounded-xl px-1 transition-colors group"
+      className="group w-full rounded-xl px-1 py-2.5 text-left transition-colors hover:bg-background/60"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-slate-700">
+            <span className="text-sm font-bold text-foreground">
               {row.room_number ? `P.${row.room_number}` : '—'}
             </span>
-            <span className="text-sm text-slate-600 truncate">{row.guest_name}</span>
+            <span className="truncate text-sm text-muted-foreground">{row.guest_name}</span>
           </div>
           {showCheckout && (
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Trả: {new Date(row.check_out_date).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })}
             </p>
           )}
           {row.bike_names.length > 0 && (
-            <p className="text-xs text-purple-600 mt-0.5">
-              🏍️ {row.bike_names.join(', ')}
-            </p>
+            <p className="mt-0.5 text-xs text-purple-600">🏍️ {row.bike_names.join(', ')}</p>
           )}
         </div>
-        {totalOwed > 0 && (
-          <span className="flex-shrink-0 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+        {totalOwed > 0 ? (
+          <span className="shrink-0 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">
             Còn {formatVND(totalOwed)}
           </span>
-        )}
-        {totalOwed <= 0 && (
-          <span className="flex-shrink-0 text-xs font-semibold text-green-600">✓</span>
+        ) : (
+          <Check className="h-4 w-4 shrink-0 text-emerald-600" />
         )}
       </div>
     </button>
@@ -294,27 +264,26 @@ function BikeReturnRowItem({ row, onClick }: { row: BikeReturnRow; onClick: () =
   return (
     <button
       onClick={onClick}
-      className="w-full text-left py-2.5 hover:bg-white/60 rounded-xl px-1 transition-colors"
+      className="w-full rounded-xl px-1 py-2.5 text-left transition-colors hover:bg-background/60"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-bold text-purple-700">{row.bike_name}</span>
             {row.plate_number && (
-              <span className="text-xs text-slate-400 font-mono">{row.plate_number}</span>
+              <span className="font-mono text-xs text-muted-foreground">{row.plate_number}</span>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {row.room_number ? `P.${row.room_number}` : '—'} · {row.guest_name}
           </p>
         </div>
-        {Number(row.outstanding) > 0 && (
-          <span className="flex-shrink-0 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+        {Number(row.outstanding) > 0 ? (
+          <span className="shrink-0 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">
             Còn {formatVND(row.outstanding)}
           </span>
-        )}
-        {Number(row.outstanding) <= 0 && (
-          <span className="flex-shrink-0 text-xs font-semibold text-green-600">✓</span>
+        ) : (
+          <Check className="h-4 w-4 shrink-0 text-emerald-600" />
         )}
       </div>
     </button>
@@ -330,14 +299,18 @@ function Chip({
   onClick?: () => void
 }) {
   const colors: Record<string, string> = {
-    green:  'bg-green-50  border-green-200  text-green-700',
-    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-    blue:   'bg-blue-50   border-blue-200   text-blue-700',
-    red:    'bg-red-50    border-red-200    text-red-700',
-    purple: 'bg-purple-50 border-purple-200 text-purple-700',
-    slate:  'bg-slate-50  border-slate-200  text-slate-500',
+    green:  'bg-emerald-50 border-emerald-200 text-emerald-700',
+    yellow: 'bg-amber-50   border-amber-200   text-amber-700',
+    blue:   'bg-blue-50    border-blue-200    text-blue-700',
+    red:    'bg-red-50     border-red-200     text-red-700',
+    purple: 'bg-purple-50  border-purple-200  text-purple-700',
+    slate:  'bg-muted/40   border-border      text-muted-foreground',
   }
-  const cls = `inline-flex items-center gap-1.5 border rounded-full px-3 py-1 text-xs font-semibold ${colors[color] ?? colors.slate} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`
+  const cls = cn(
+    'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold',
+    colors[color] ?? colors.slate,
+    onClick && 'cursor-pointer transition-opacity hover:opacity-80'
+  )
 
   return onClick
     ? <button onClick={onClick} className={cls}><span className="text-sm font-bold">{value}</span>{label}</button>
@@ -345,11 +318,11 @@ function Chip({
 }
 
 const LEGEND = [
-  { label: 'Đang ở',          dot: 'bg-green-500'  },
-  { label: 'Nhận hôm nay',    dot: 'bg-yellow-400' },
-  { label: 'Trả hôm nay',     dot: 'bg-blue-500'   },
-  { label: 'Cần dọn',         dot: 'bg-red-500'    },
-  { label: 'Đang dọn',        dot: 'bg-orange-400' },
-  { label: 'Ngừng hoạt động', dot: 'bg-gray-400'   },
-  { label: 'Trống',           dot: 'bg-gray-300'   },
+  { label: 'Đang ở',          dot: 'bg-emerald-500' },
+  { label: 'Nhận hôm nay',    dot: 'bg-amber-400'   },
+  { label: 'Trả hôm nay',     dot: 'bg-blue-500'    },
+  { label: 'Cần dọn',         dot: 'bg-red-500'     },
+  { label: 'Đang dọn',        dot: 'bg-orange-400'  },
+  { label: 'Ngừng hoạt động', dot: 'bg-gray-400'    },
+  { label: 'Trống',           dot: 'bg-gray-300'    },
 ] as const

@@ -125,6 +125,7 @@
     "assignRoom": "Gán phòng",
     "count": "{{count}} đặt phòng",
     "loading": "Đang tải...",
+    "loadMore": "Tải thêm",
     "noBookings": "Không có đặt phòng.",
     "tabs": {
       "today": "Hôm nay",

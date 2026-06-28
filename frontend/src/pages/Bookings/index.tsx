@@ -1,5 +1,7 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { AlertTriangle, Check, MoreHorizontal, Plus, Search } from 'lucide-react'
 import BookingCalendar from '../../components/bookings/BookingCalendar'
 import BookingDetailModal from '../../components/bookings/BookingDetailModal'
 import BookingFormModal from '../../components/bookings/BookingFormModal'
@@ -11,17 +13,52 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import type { Booking, CalendarBooking, Room } from '../../types'
 import { formatDate, formatVND } from '../../utils/format'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 const OTA_BANNER_KEY = 'lastBookingsVisit'
+const PAGE_SIZE = 50
 
 type Tab = 'today' | 'all' | 'calendar'
 
 const STATUS_BADGE: Record<string, string> = {
   CONFIRMED:   'bg-blue-100 text-blue-700',
-  CHECKED_IN:  'bg-green-100 text-green-700',
-  CHECKED_OUT: 'bg-gray-100 text-gray-600',
+  CHECKED_IN:  'bg-emerald-100 text-emerald-700',
+  CHECKED_OUT: 'bg-muted text-muted-foreground',
   CANCELLED:   'bg-red-100 text-red-600',
-  NO_SHOW:     'bg-yellow-100 text-yellow-700',
+  NO_SHOW:     'bg-amber-100 text-amber-700',
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation()
+  return (
+    <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', STATUS_BADGE[status] ?? 'bg-muted text-muted-foreground')}>
+      {t(`status.${status}` as any)}
+    </span>
+  )
 }
 
 function firstOfMonth(d: Date): Date {
@@ -53,79 +90,41 @@ interface DialogState {
   onConfirm: () => void
 }
 
-function InlineDialog({ dialog, onCancel }: { dialog: DialogState; onCancel: () => void }) {
+function ConfirmDialog({ dialog, onCancel }: { dialog: DialogState; onCancel: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
-        <div className="p-6">
-          <h3 className="text-base font-bold text-slate-800 mb-2">{dialog.title}</h3>
-          <p className="text-sm text-slate-600 leading-relaxed">{dialog.message}</p>
-        </div>
-        <div className="flex gap-3 px-6 pb-6">
-          <button
-            onClick={onCancel}
-            className="flex-1 border border-slate-300 text-slate-700 text-sm font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors"
-          >
+    <Dialog open onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent className="max-w-sm" showClose={false}>
+        <DialogHeader>
+          <DialogTitle>{dialog.title}</DialogTitle>
+          <DialogDescription className="leading-relaxed">{dialog.message}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" size="lg" onClick={onCancel}>
             {dialog.cancelLabel}
-          </button>
-          <button
+          </Button>
+          <Button
+            size="lg"
+            variant={dialog.confirmDanger ? 'destructive' : 'default'}
             onClick={dialog.onConfirm}
-            className={`flex-1 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors ${
-              dialog.confirmDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
-            }`}
           >
             {dialog.confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-function ActionsMenu({
-  isOpen, onToggle, onClose, items,
-}: {
-  isOpen: boolean
-  onToggle: () => void
-  onClose: () => void
-  items: Array<{ label: string; onClick: () => void; danger?: boolean }>
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!isOpen) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [isOpen, onClose])
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggle() }}
-        title="Thêm thao tác"
-        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 text-slate-400 text-sm tracking-widest"
-      >
-        &bull;&bull;&bull;
-      </button>
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg min-w-40 py-1.5">
-          {items.map((item, i) => (
-            <button
-              key={i}
-              onClick={() => { onClose(); item.onClick() }}
-              className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-slate-50 ${
-                item.danger ? 'text-red-600 font-medium' : 'text-slate-700'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+function PaymentCell({ outstanding }: { outstanding: number }) {
+  const { t } = useTranslation()
+  return outstanding > 0 ? (
+    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-600">
+      Còn {formatVND(outstanding)}
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-600">
+      <Check className="h-3 w-3" /> {t('bookings.paid')}
+    </span>
   )
 }
 
@@ -133,10 +132,14 @@ export default function BookingsPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const { showToast } = useToast()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
   const [calendarBookings, setCalendarBookings] = useState<CalendarBooking[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [tab, setTab] = useState<Tab>('today')
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<Booking | null>(null)
@@ -146,7 +149,6 @@ export default function BookingsPage() {
   const [yearStart, setYearStart] = useState<Date>(new Date(new Date().getFullYear(), 0, 1))
   const [yearBookings, setYearBookings] = useState<CalendarBooking[]>([])
   const [search, setSearch] = useState('')
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
   const [dialog, setDialog] = useState<DialogState | null>(null)
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null)
 
@@ -156,13 +158,43 @@ export default function BookingsPage() {
     }
   }, [user])
 
+  // Deep-link from the dashboard ops panels: open the specific booking detail.
+  useEffect(() => {
+    const openId = (location.state as { openBookingId?: number } | null)?.openBookingId
+    if (openId) {
+      bookingsApi.getById(openId).then(setDetailBooking).catch(() => {})
+      // Clear the state so navigating back doesn't re-open the modal.
+      navigate(location.pathname, { replace: true, state: null })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const loadBookings = (view: Tab, q?: string) => {
     if (view === 'calendar') return
     setLoading(true)
+    setHasMore(false)
     const req = view === 'today'
       ? bookingsApi.today()
-      : bookingsApi.list({ search: q || undefined })
-    req.then(setBookings).catch(() => {}).finally(() => setLoading(false))
+      : bookingsApi.list({ search: q || undefined, limit: PAGE_SIZE, offset: 0 })
+    req
+      .then((rows) => {
+        setBookings(rows)
+        if (view === 'all') setHasMore(rows.length === PAGE_SIZE)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  const loadMore = () => {
+    setLoadingMore(true)
+    bookingsApi
+      .list({ search: search || undefined, limit: PAGE_SIZE, offset: bookings.length })
+      .then((rows) => {
+        setBookings((prev) => [...prev, ...rows])
+        setHasMore(rows.length === PAGE_SIZE)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false))
   }
 
   const loadCalendar = (ms: Date) => {
@@ -180,6 +212,7 @@ export default function BookingsPage() {
   useEffect(() => {
     loadBookings(tab)
     roomsApi.list().then(setRooms).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const switchTab = (newTab: Tab) => {
@@ -289,33 +322,50 @@ export default function BookingsPage() {
     loadCalendar(ms)
   }
 
+  // Builds the overflow ("...") menu items for a booking, shared by table + mobile.
+  const menuItems = (b: Booking) => {
+    const isEditable = b.status === 'CONFIRMED' || b.status === 'CHECKED_IN'
+    const canPay = b.status === 'CONFIRMED' || b.status === 'CHECKED_IN' || b.status === 'CHECKED_OUT'
+    const items: Array<{ label: string; onClick: () => void; danger?: boolean }> = []
+    if (isEditable) items.push({ label: t('bookings.editBooking'), onClick: () => setEditTarget(b) })
+    if (canPay) items.push({ label: t('bookings.actions.pay'), onClick: () => setPaymentTarget(b) })
+    if (b.status === 'CONFIRMED') items.push({ label: t('bookings.actions.noShowLabel'), onClick: () => doAction(b, 'no_show') })
+    if (b.status === 'CONFIRMED' || b.status === 'CHECKED_IN') {
+      items.push({ label: t('bookings.actions.cancelLabel'), onClick: () => handleAction(b, 'cancel'), danger: true })
+    }
+    return items
+  }
+
   return (
     <Layout>
-      <div className="p-4 md:p-8 max-w-7xl">
-        <div className="flex items-center justify-between mb-6">
+      <div className="mx-auto max-w-7xl p-4 md:p-8">
+        <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{t('bookings.title')}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('bookings.title')}</h1>
             {tab !== 'calendar' && (
-              <p className="text-sm text-slate-500 mt-1">{t('bookings.count', { count: bookings.length })}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('bookings.count', { count: bookings.length })}{tab === 'all' && hasMore ? '+' : ''}
+              </p>
             )}
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-          >
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="h-4 w-4" />
             {t('bookings.newBooking')}
-          </button>
+          </Button>
         </div>
 
-        <div className="flex items-center gap-4 mb-6 flex-wrap">
-          <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+        <div className="mb-6 flex flex-wrap items-center gap-4">
+          <div className="inline-flex w-fit gap-1 rounded-lg bg-muted p-1">
             {(['today', 'all', 'calendar'] as Tab[]).map((tabKey) => (
               <button
                 key={tabKey}
                 onClick={() => switchTab(tabKey)}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  tab === tabKey ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
+                className={cn(
+                  'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+                  tab === tabKey
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
               >
                 {tabKey === 'today'
                   ? t('bookings.tabs.today')
@@ -327,12 +377,15 @@ export default function BookingsPage() {
           </div>
 
           {tab === 'all' && (
-            <input
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Tìm theo tên khách..."
-              className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
-            />
+            <div className="relative w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder="Tìm theo tên khách..."
+                className="h-9 pl-8"
+              />
+            </div>
           )}
         </div>
 
@@ -352,229 +405,223 @@ export default function BookingsPage() {
 
         {tab !== 'calendar' && (
           loading ? (
-            <p className="text-slate-500 text-sm">{t('bookings.loading')}</p>
+            <p className="text-sm text-muted-foreground">{t('bookings.loading')}</p>
           ) : bookings.length === 0 ? (
-            <p className="text-slate-400 text-sm">{t('bookings.noBookings')}</p>
+            <p className="text-sm text-muted-foreground">{t('bookings.noBookings')}</p>
           ) : (
-            <><div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-gray-200">
-                  <tr>
-                    {[
-                      t('bookings.table.room'),
-                      t('bookings.table.guest'),
-                      t('bookings.table.checkIn'),
-                      t('bookings.table.checkOut'),
-                      t('bookings.table.ota'),
-                      t('bookings.table.status'),
-                      t('bookings.table.total'),
-                      t('bookings.table.collected'),
-                      t('bookings.table.actions'),
-                    ].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wide whitespace-nowrap">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {bookings.map((b) => {
-                    const busy = actioning === b.id
-                    const outstanding = Number(b.total_price) - Number(b.collected_amount)
-                    const isEditable = b.status === 'CONFIRMED' || b.status === 'CHECKED_IN'
-                    const canPay = b.status === 'CONFIRMED' || b.status === 'CHECKED_IN' || b.status === 'CHECKED_OUT'
-                    const overdueUnpaid = isOverdueUnpaid(b)
-                    return (
-                      <tr
-                        key={b.id}
-                        onClick={() => setDetailBooking(b)}
-                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${overdueUnpaid ? 'bg-red-50/40' : ''}`}
-                      >
-                        <td className="px-4 py-3 font-semibold text-slate-800">
-                          {b.room_number ?? (
-                            <span className="text-xs text-orange-600 font-medium bg-orange-50 px-2 py-0.5 rounded-full">
+            <>
+              {/* Desktop table */}
+              <div className="hidden overflow-hidden rounded-xl border bg-card md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      {[
+                        t('bookings.table.room'),
+                        t('bookings.table.guest'),
+                        t('bookings.table.checkIn'),
+                        t('bookings.table.checkOut'),
+                        t('bookings.table.ota'),
+                        t('bookings.table.status'),
+                        t('bookings.table.total'),
+                        t('bookings.table.collected'),
+                        t('bookings.table.actions'),
+                      ].map((h) => (
+                        <TableHead key={h} className="whitespace-nowrap uppercase tracking-wide">{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bookings.map((b) => {
+                      const busy = actioning === b.id
+                      const outstanding = Number(b.total_price) - Number(b.collected_amount)
+                      const overdueUnpaid = isOverdueUnpaid(b)
+                      return (
+                        <TableRow
+                          key={b.id}
+                          onClick={() => setDetailBooking(b)}
+                          className={cn('cursor-pointer', overdueUnpaid && 'bg-red-50/40')}
+                        >
+                          <TableCell className="font-semibold text-foreground">
+                            {b.room_number ?? (
+                              <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600">
+                                {t('bookings.noRoom')}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-foreground">{b.guest_name}</div>
+                            {b.guest_phone && (
+                              <div className="mt-0.5 text-xs text-muted-foreground">{b.guest_phone}</div>
+                            )}
+                            {overdueUnpaid && (
+                              <div className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-red-600">
+                                <AlertTriangle className="h-3 w-3" />
+                                <span>{t('bookings.unpaidOverdue')}</span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(b.check_in_date)}</TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(b.check_out_date)}</TableCell>
+                          <TableCell className="text-muted-foreground">{t(`ota.${b.ota_source}` as any)}</TableCell>
+                          <TableCell><StatusBadge status={b.status} /></TableCell>
+                          <TableCell className="whitespace-nowrap font-medium text-foreground">{formatVND(b.total_price)}</TableCell>
+                          <TableCell className="whitespace-nowrap"><PaymentCell outstanding={outstanding} /></TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-2">
+                              {b.status === 'CONFIRMED' && (
+                                <Button
+                                  size="sm"
+                                  disabled={busy}
+                                  onClick={() => handleAction(b, 'check_in')}
+                                  className={cn(
+                                    'whitespace-nowrap text-white',
+                                    b.room_id
+                                      ? 'bg-emerald-500 hover:bg-emerald-600'
+                                      : 'bg-orange-400 hover:bg-orange-500'
+                                  )}
+                                >
+                                  {busy ? '...' : t('bookings.actions.checkIn')}
+                                </Button>
+                              )}
+                              {b.status === 'CHECKED_IN' && (
+                                <Button
+                                  size="sm"
+                                  disabled={busy}
+                                  onClick={() => handleAction(b, 'check_out')}
+                                  className="whitespace-nowrap bg-blue-500 text-white hover:bg-blue-600"
+                                >
+                                  {busy ? '...' : t('bookings.actions.checkOut')}
+                                </Button>
+                              )}
+                              {menuItems(b).length > 0 && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon-sm" aria-label={t('bookings.table.actions')}>
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {menuItems(b).map((item, i) => (
+                                      <DropdownMenuItem
+                                        key={i}
+                                        variant={item.danger ? 'destructive' : 'default'}
+                                        onClick={item.onClick}
+                                      >
+                                        {item.label}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile card list */}
+              <div className="space-y-2 md:hidden">
+                {bookings.map((b) => {
+                  const busy = actioning === b.id
+                  const outstanding = Number(b.total_price) - Number(b.collected_amount)
+                  const overdueUnpaid = isOverdueUnpaid(b)
+                  return (
+                    <div
+                      key={b.id}
+                      onClick={() => setDetailBooking(b)}
+                      className={cn(
+                        'cursor-pointer rounded-xl border-2 bg-card p-4 transition-colors active:bg-muted/50',
+                        overdueUnpaid
+                          ? 'border-red-200 bg-red-50/30'
+                          : b.status === 'CHECKED_IN'
+                          ? 'border-emerald-200'
+                          : b.status === 'CONFIRMED'
+                          ? 'border-blue-200'
+                          : 'border-border'
+                      )}
+                    >
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-base font-bold text-foreground">
+                          {b.room_number ? `P.${b.room_number}` : (
+                            <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600">
                               {t('bookings.noRoom')}
                             </span>
                           )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-slate-800">{b.guest_name}</div>
-                          {b.guest_phone && (
-                            <div className="text-xs text-slate-400 mt-0.5">{b.guest_phone}</div>
+                        </span>
+                        <StatusBadge status={b.status} />
+                      </div>
+                      <p className="font-medium text-foreground">{b.guest_name}</p>
+                      {b.guest_phone && <p className="text-xs text-muted-foreground">{b.guest_phone}</p>}
+                      {overdueUnpaid && (
+                        <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-red-600">
+                          <AlertTriangle className="h-3 w-3" /> {t('bookings.unpaidOverdue')}
+                        </p>
+                      )}
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {formatDate(b.check_in_date)} → {formatDate(b.check_out_date)}
+                        <span className="ml-2 text-muted-foreground/70">{t(`ota.${b.ota_source}` as any)}</span>
+                      </p>
+                      <div className="mt-2.5 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+                        <PaymentCell outstanding={outstanding} />
+                        <div className="flex items-center gap-2">
+                          {b.status === 'CONFIRMED' && (
+                            <Button
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => handleAction(b, 'check_in')}
+                              className={cn('text-white', b.room_id ? 'bg-emerald-500' : 'bg-orange-400')}
+                            >
+                              {busy ? '...' : t('bookings.actions.checkIn')}
+                            </Button>
                           )}
-                          {overdueUnpaid && (
-                            <div className="text-xs text-red-600 font-semibold mt-0.5 flex items-center gap-1">
-                              <span>&#9888;</span>
-                              <span>{t('bookings.unpaidOverdue')}</span>
-                            </div>
+                          {b.status === 'CHECKED_IN' && (
+                            <Button
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => handleAction(b, 'check_out')}
+                              className="bg-blue-500 text-white"
+                            >
+                              {busy ? '...' : t('bookings.actions.checkOut')}
+                            </Button>
                           )}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(b.check_in_date)}</td>
-                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(b.check_out_date)}</td>
-                        <td className="px-4 py-3 text-slate-500">{t(`ota.${b.ota_source}` as any)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${STATUS_BADGE[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                            {t(`status.${b.status}` as any)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700 font-medium whitespace-nowrap">{formatVND(b.total_price)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {outstanding > 0 ? (
-                            <span className="inline-flex items-center gap-1 text-red-600 font-semibold text-xs bg-red-50 px-2 py-1 rounded-full">
-                              Còn {formatVND(outstanding)}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-green-600 text-xs bg-green-50 px-2 py-1 rounded-full">
-                              ✓ {t('bookings.paid')}
-                            </span>
+                          {menuItems(b).length > 0 && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="icon-sm" aria-label={t('bookings.table.actions')}>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {menuItems(b).map((item, i) => (
+                                  <DropdownMenuItem
+                                    key={i}
+                                    variant={item.danger ? 'destructive' : 'default'}
+                                    onClick={item.onClick}
+                                  >
+                                    {item.label}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
-                        </td>
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            {b.status === 'CONFIRMED' && (
-                              <button
-                                disabled={busy}
-                                onClick={() => handleAction(b, 'check_in')}
-                                className={`text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50 whitespace-nowrap ${
-                                  b.room_id
-                                    ? 'bg-green-500 text-white hover:bg-green-600'
-                                    : 'bg-orange-400 text-white hover:bg-orange-500'
-                                }`}
-                              >
-                                {busy ? '...' : t('bookings.actions.checkIn')}
-                              </button>
-                            )}
-                            {b.status === 'CHECKED_IN' && (
-                              <button
-                                disabled={busy}
-                                onClick={() => handleAction(b, 'check_out')}
-                                className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 whitespace-nowrap"
-                              >
-                                {busy ? '...' : t('bookings.actions.checkOut')}
-                              </button>
-                            )}
-                            {isEditable && (
-                              <button
-                                onClick={() => setEditTarget(b)}
-                                className="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 whitespace-nowrap"
-                              >
-                                {t('bookings.editBooking')}
-                              </button>
-                            )}
-                            {canPay && (
-                              <button
-                                onClick={() => setPaymentTarget(b)}
-                                className="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 whitespace-nowrap"
-                              >
-                                {t('bookings.actions.pay')}
-                              </button>
-                            )}
-                            {(b.status === 'CONFIRMED' || b.status === 'CHECKED_IN') && (
-                              <ActionsMenu
-                                isOpen={openMenuId === b.id}
-                                onToggle={() => setOpenMenuId((id) => id === b.id ? null : b.id)}
-                                onClose={() => setOpenMenuId(null)}
-                                items={[
-                                  ...(b.status === 'CONFIRMED' ? [{
-                                    label: t('bookings.actions.noShowLabel'),
-                                    onClick: () => doAction(b, 'no_show'),
-                                  }] : []),
-                                  {
-                                    label: t('bookings.actions.cancelLabel'),
-                                    onClick: () => handleAction(b, 'cancel'),
-                                    danger: true,
-                                  },
-                                ]}
-                              />
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
 
-            {/* Mobile card list */}
-            <div className="md:hidden space-y-2">
-              {bookings.map((b) => {
-                const busy = actioning === b.id
-                const outstanding = Number(b.total_price) - Number(b.collected_amount)
-                const overdueUnpaid = isOverdueUnpaid(b)
-                return (
-                  <div
-                    key={b.id}
-                    onClick={() => setDetailBooking(b)}
-                    className={`bg-white rounded-xl border-2 p-4 cursor-pointer active:bg-slate-50 transition-colors ${
-                      overdueUnpaid ? 'border-red-200 bg-red-50/30' :
-                      b.status === 'CHECKED_IN' ? 'border-green-200' :
-                      b.status === 'CONFIRMED' ? 'border-blue-200' :
-                      'border-gray-100'
-                    }`}
-                  >
-                    {/* Row 1: room + status */}
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-slate-800 text-base">
-                        {b.room_number ? `P.${b.room_number}` : (
-                          <span className="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
-                            {t('bookings.noRoom')}
-                          </span>
-                        )}
-                      </span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_BADGE[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {t(`status.${b.status}` as any)}
-                      </span>
-                    </div>
-                    {/* Row 2: guest */}
-                    <p className="font-medium text-slate-700">{b.guest_name}</p>
-                    {b.guest_phone && <p className="text-xs text-slate-400">{b.guest_phone}</p>}
-                    {overdueUnpaid && (
-                      <p className="text-xs text-red-600 font-semibold mt-0.5">⚠ {t('bookings.unpaidOverdue')}</p>
-                    )}
-                    {/* Row 3: dates */}
-                    <p className="text-xs text-slate-500 mt-1.5">
-                      {formatDate(b.check_in_date)} → {formatDate(b.check_out_date)}
-                      <span className="ml-2 text-slate-400">{t(`ota.${b.ota_source}` as any)}</span>
-                    </p>
-                    {/* Row 4: payment + action */}
-                    <div className="flex items-center justify-between mt-2.5" onClick={(e) => e.stopPropagation()}>
-                      <span>
-                        {outstanding > 0 ? (
-                          <span className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-                            Còn {formatVND(outstanding)}
-                          </span>
-                        ) : (
-                          <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                            ✓ {t('bookings.paid')}
-                          </span>
-                        )}
-                      </span>
-                      {b.status === 'CONFIRMED' && (
-                        <button
-                          disabled={busy}
-                          onClick={() => handleAction(b, 'check_in')}
-                          className={`text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50 ${
-                            b.room_id ? 'bg-green-500 text-white' : 'bg-orange-400 text-white'
-                          }`}
-                        >
-                          {busy ? '...' : t('bookings.actions.checkIn')}
-                        </button>
-                      )}
-                      {b.status === 'CHECKED_IN' && (
-                        <button
-                          disabled={busy}
-                          onClick={() => handleAction(b, 'check_out')}
-                          className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-blue-500 text-white disabled:opacity-50"
-                        >
-                          {busy ? '...' : t('bookings.actions.checkOut')}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div></>
+              {tab === 'all' && hasMore && (
+                <div className="mt-4 flex justify-center">
+                  <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
+                    {loadingMore ? t('bookings.loading') : t('bookings.loadMore')}
+                  </Button>
+                </div>
+              )}
+            </>
           )
         )}
       </div>
@@ -615,7 +662,7 @@ export default function BookingsPage() {
       )}
 
       {dialog && (
-        <InlineDialog
+        <ConfirmDialog
           dialog={dialog}
           onCancel={() => setDialog(null)}
         />

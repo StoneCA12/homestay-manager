@@ -2,10 +2,10 @@ import { useTranslation } from 'react-i18next'
 import type { Room, RoomStatus } from '../../types'
 
 const STATUS_CONFIG: Record<RoomStatus, { bg: string; border: string; badge: string }> = {
-  AVAILABLE:    { bg: 'bg-white',     border: 'border-gray-200',   badge: 'bg-gray-100 text-gray-600'  },
+  AVAILABLE:    { bg: 'bg-card',     border: 'border-border',     badge: 'bg-muted text-muted-foreground' },
   DIRTY:        { bg: 'bg-red-50',    border: 'border-red-300',    badge: 'bg-red-500 text-white'      },
   CLEANING:     { bg: 'bg-orange-50', border: 'border-orange-300', badge: 'bg-orange-400 text-white'   },
-  OUT_OF_ORDER: { bg: 'bg-gray-100',  border: 'border-gray-400',   badge: 'bg-gray-500 text-white'     },
+  OUT_OF_ORDER: { bg: 'bg-muted',    border: 'border-border',     badge: 'bg-slate-500 text-white'    },
 }
 
 // Maps current status → what status clicking the button transitions to
@@ -30,12 +30,12 @@ export default function HousekeepingRoomCard({ room, updating, onStatusChange }:
   return (
     <div className={`rounded-xl border-2 ${cfg.bg} ${cfg.border} p-4 flex flex-col gap-3 shadow-sm`}>
       <div className="flex items-start justify-between">
-        <span className="text-2xl font-bold text-slate-800">{room.room_number}</span>
+        <span className="text-2xl font-bold text-foreground">{room.room_number}</span>
         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.badge}`}>
           {t(`roomStatus.${room.housekeeping_status}` as any)}
         </span>
       </div>
-      <p className="text-xs text-slate-500">{t(`roomType.${room.room_type}` as any)} · Tầng {room.floor}</p>
+      <p className="text-xs text-muted-foreground">{t(`roomType.${room.room_type}` as any)} · Tầng {room.floor}</p>
       <div className="flex flex-col gap-1.5 mt-auto">
         {actions.map((a) => (
           <button

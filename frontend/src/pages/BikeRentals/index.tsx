@@ -1,23 +1,47 @@
 import { useEffect, useState } from 'react'
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
 import { bikesApi, bookingsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import type { Bike, BikeRental, BikeRentalReport, BikeRentalReportRow, Booking } from '../../types'
 import { formatDate, formatVND } from '../../utils/format'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 type Tab = 'fleet' | 'rentals' | 'report'
 
-const BIKE_STATUS_CFG: Record<string, { label: string; badge: string; dot: string }> = {
-  AVAILABLE:   { label: 'Sẵn sàng',  badge: 'bg-green-100 text-green-700',  dot: 'bg-green-500'  },
-  RENTED:      { label: 'Đang thuê', badge: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-500'   },
-  MAINTENANCE: { label: 'Bảo trì',   badge: 'bg-red-100 text-red-700',     dot: 'bg-red-400'    },
+const SELECT_CLASS =
+  'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+
+const BIKE_STATUS_CFG: Record<string, { label: string; badge: string }> = {
+  AVAILABLE:   { label: 'Sẵn sàng',  badge: 'bg-emerald-100 text-emerald-700' },
+  RENTED:      { label: 'Đang thuê', badge: 'bg-blue-100 text-blue-700' },
+  MAINTENANCE: { label: 'Bảo trì',   badge: 'bg-red-100 text-red-700' },
 }
 
 const RENTAL_STATUS_CFG: Record<string, { label: string; badge: string }> = {
-  ACTIVE:    { label: 'Đang thuê', badge: 'bg-blue-100 text-blue-700'   },
-  RETURNED:  { label: 'Đã trả',   badge: 'bg-gray-100 text-gray-600'   },
-  CANCELLED: { label: 'Đã hủy',   badge: 'bg-red-100 text-red-600'     },
+  ACTIVE:    { label: 'Đang thuê', badge: 'bg-blue-100 text-blue-700' },
+  RETURNED:  { label: 'Đã trả',   badge: 'bg-muted text-muted-foreground' },
+  CANCELLED: { label: 'Đã hủy',   badge: 'bg-red-100 text-red-600' },
 }
 
 const METHOD_LABEL: Record<string, string> = {
@@ -37,8 +61,7 @@ function toISO(d: Date) {
 // ─── Bike Card ────────────────────────────────────────────────────────────────
 
 function BikeCard({
-  bike, isAdmin,
-  onEdit, onDelete,
+  bike, isAdmin, onEdit, onDelete,
 }: {
   bike: Bike
   isAdmin: boolean
@@ -47,31 +70,21 @@ function BikeCard({
 }) {
   const cfg = BIKE_STATUS_CFG[bike.status] ?? BIKE_STATUS_CFG.AVAILABLE
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between">
         <div>
-          <p className="font-bold text-slate-800 text-base">{bike.name}</p>
-          {bike.plate_number && <p className="text-xs text-slate-400 mt-0.5 font-mono">{bike.plate_number}</p>}
+          <p className="text-base font-bold text-foreground">{bike.name}</p>
+          {bike.plate_number && <p className="mt-0.5 font-mono text-xs text-muted-foreground">{bike.plate_number}</p>}
         </div>
-        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+        <span className={cn('rounded-full px-2 py-1 text-xs font-semibold', cfg.badge)}>{cfg.label}</span>
       </div>
-      <p className="text-sm font-semibold text-slate-700">{formatVND(bike.daily_rate)}<span className="text-xs font-normal text-slate-400">/ngày</span></p>
-      {bike.notes && <p className="text-xs text-slate-500 italic">{bike.notes}</p>}
+      <p className="text-sm font-semibold text-foreground">{formatVND(bike.daily_rate)}<span className="text-xs font-normal text-muted-foreground">/ngày</span></p>
+      {bike.notes && <p className="text-xs italic text-muted-foreground">{bike.notes}</p>}
       {isAdmin && (
-        <div className="flex gap-2 mt-auto pt-2 border-t border-gray-100">
-          <button
-            onClick={() => onEdit(bike)}
-            className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-          >
-            Sửa
-          </button>
+        <div className="mt-auto flex gap-2 border-t pt-2">
+          <Button variant="secondary" size="sm" className="flex-1" onClick={() => onEdit(bike)}>Sửa</Button>
           {bike.status !== 'RENTED' && (
-            <button
-              onClick={() => onDelete(bike)}
-              className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-            >
-              Xóa
-            </button>
+            <Button variant="ghost" size="sm" className="flex-1 text-destructive hover:text-destructive" onClick={() => onDelete(bike)}>Xóa</Button>
           )}
         </div>
       )}
@@ -113,45 +126,45 @@ function BikeFormModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-        <h2 className="text-base font-bold text-slate-800">{editing ? 'Sửa thông tin xe' : 'Thêm xe máy'}</h2>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{editing ? 'Sửa thông tin xe' : 'Thêm xe máy'}</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Tên xe *</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Wave Alpha, Airblade..." className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="space-y-1">
+            <Label className="text-xs">Tên xe *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Wave Alpha, Airblade..." className="h-9" />
           </div>
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Biển số</label>
-            <input value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="51X1-12345" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="space-y-1">
+            <Label className="text-xs">Biển số</Label>
+            <Input value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="51X1-12345" className="h-9 font-mono" />
           </div>
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Giá thuê/ngày (VND) *</label>
-            <input type="number" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="100000" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="space-y-1">
+            <Label className="text-xs">Giá thuê/ngày (VND) *</Label>
+            <Input type="number" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="100000" className="h-9" />
           </div>
           {editing && (
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Trạng thái</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div className="space-y-1">
+              <Label className="text-xs">Trạng thái</Label>
+              <select value={status} onChange={(e) => setStatus(e.target.value as any)} className={SELECT_CLASS}>
                 <option value="AVAILABLE">Sẵn sàng</option>
                 <option value="MAINTENANCE">Bảo trì</option>
               </select>
             </div>
           )}
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Ghi chú</label>
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="space-y-1">
+            <Label className="text-xs">Ghi chú</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-9" />
           </div>
         </div>
-        {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 border border-slate-300 text-slate-700 text-sm py-2.5 rounded-xl hover:bg-slate-50">Hủy</button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50">
-            {saving ? 'Đang lưu...' : 'Lưu'}
-          </button>
-        </div>
-      </div>
-    </div>
+        {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button variant="outline" size="lg" className="flex-1" onClick={onClose}>Hủy</Button>
+          <Button size="lg" className="flex-1" onClick={handleSave} disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -221,13 +234,15 @@ function AddRentalModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-        <h2 className="text-base font-bold text-slate-800">Thêm thuê xe máy</h2>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Thêm thuê xe máy</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Chọn xe *</label>
-            <select value={bikeId} onChange={(e) => setBikeId(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <div className="space-y-1">
+            <Label className="text-xs">Chọn xe *</Label>
+            <select value={bikeId} onChange={(e) => setBikeId(e.target.value)} className={SELECT_CLASS}>
               <option value="">-- Chọn xe --</option>
               {availableBikes.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -237,14 +252,14 @@ function AddRentalModal({
               ))}
             </select>
           </div>
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Đặt phòng *</label>
+          <div className="space-y-1">
+            <Label className="text-xs">Đặt phòng *</Label>
             {prefilledBookingId ? (
-              <div className="border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-600">
+              <div className="rounded-lg border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
                 Đặt phòng #{prefilledBookingId} (đã chọn)
               </div>
             ) : (
-              <select value={bookingId} onChange={(e) => handleBookingSelect(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={bookingId} onChange={(e) => handleBookingSelect(e.target.value)} className={SELECT_CLASS}>
                 <option value="">-- Chọn đặt phòng --</option>
                 {activeBookings.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -255,37 +270,35 @@ function AddRentalModal({
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Ngày nhận *</label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div className="space-y-1">
+              <Label className="text-xs">Ngày nhận *</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9" />
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Ngày trả *</label>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div className="space-y-1">
+              <Label className="text-xs">Ngày trả *</Label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9" />
             </div>
           </div>
           {selectedBike && (
-            <div className="bg-blue-50 rounded-xl px-4 py-3 text-sm">
-              <div className="flex justify-between text-slate-600">
+            <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm">
+              <div className="flex justify-between text-muted-foreground">
                 <span>{numDays} ngày × {formatVND(selectedBike.daily_rate)}</span>
-                <span className="font-bold text-slate-800">{formatVND(preview)}</span>
+                <span className="font-bold text-foreground">{formatVND(preview)}</span>
               </div>
             </div>
           )}
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Ghi chú</label>
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="space-y-1">
+            <Label className="text-xs">Ghi chú</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-9" />
           </div>
         </div>
-        {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 border border-slate-300 text-slate-700 text-sm py-2.5 rounded-xl hover:bg-slate-50">Hủy</button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50">
-            {saving ? 'Đang lưu...' : 'Tạo thuê xe'}
-          </button>
-        </div>
-      </div>
-    </div>
+        {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button variant="outline" size="lg" className="flex-1" onClick={onClose}>Hủy</Button>
+          <Button size="lg" className="flex-1" onClick={handleSave} disabled={saving}>{saving ? 'Đang lưu...' : 'Tạo thuê xe'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -319,53 +332,51 @@ function AddBikePaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-        <h2 className="text-base font-bold text-slate-800">Thu tiền thuê xe</h2>
-        <div className="bg-slate-50 rounded-xl px-4 py-3 text-sm space-y-1">
-          <div className="flex justify-between"><span className="text-slate-500">Xe</span><span className="font-medium">{rental.bike_name}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Khách</span><span className="font-medium">{rental.guest_name}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Phòng</span><span className="font-medium">{rental.room_number ? `P.${rental.room_number}` : '—'}</span></div>
-          <div className="flex justify-between border-t border-slate-200 pt-1 mt-1">
-            <span className="text-slate-500">Còn lại</span>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Thu tiền thuê xe</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-1 rounded-xl bg-muted/50 px-4 py-3 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Xe</span><span className="font-medium">{rental.bike_name}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Khách</span><span className="font-medium">{rental.guest_name}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Phòng</span><span className="font-medium">{rental.room_number ? `P.${rental.room_number}` : '—'}</span></div>
+          <div className="mt-1 flex justify-between border-t pt-1">
+            <span className="text-muted-foreground">Còn lại</span>
             <span className="font-bold text-red-600">{formatVND(outstanding)}</span>
           </div>
         </div>
         <div className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Số tiền thu (VND)</label>
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="space-y-1">
+            <Label className="text-xs">Số tiền thu (VND)</Label>
+            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-9" />
           </div>
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Phương thức</label>
-            <select value={method} onChange={(e) => setMethod(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <div className="space-y-1">
+            <Label className="text-xs">Phương thức</Label>
+            <select value={method} onChange={(e) => setMethod(e.target.value)} className={SELECT_CLASS}>
               <option value="CASH">Tiền mặt</option>
               <option value="BANK_TRANSFER">Chuyển khoản</option>
             </select>
           </div>
-          <div>
-            <label className="text-xs font-medium text-slate-600 block mb-1">Ghi chú</label>
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="space-y-1">
+            <Label className="text-xs">Ghi chú</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-9" />
           </div>
         </div>
-        {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 border border-slate-300 text-slate-700 text-sm py-2.5 rounded-xl hover:bg-slate-50">Hủy</button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-green-700 disabled:opacity-50">
-            {saving ? 'Đang lưu...' : 'Thu tiền'}
-          </button>
-        </div>
-      </div>
-    </div>
+        {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button variant="outline" size="lg" className="flex-1" onClick={onClose}>Hủy</Button>
+          <Button size="lg" className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleSave} disabled={saving}>{saving ? 'Đang lưu...' : 'Thu tiền'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 // ─── Rentals table row ────────────────────────────────────────────────────────
 
 function RentalRow({
-  rental, isAdmin,
-  onPay, onReturn, onCancel, onExpand,
-  expanded,
+  rental, isAdmin, onPay, onReturn, onCancel, onExpand, expanded,
 }: {
   rental: BikeRental
   isAdmin: boolean
@@ -380,76 +391,76 @@ function RentalRow({
 
   return (
     <>
-      <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={onExpand}>
-        <td className="px-4 py-3">
-          <p className="font-semibold text-slate-800 text-sm">{rental.bike_name}</p>
-          {rental.plate_number && <p className="text-xs text-slate-400 font-mono">{rental.plate_number}</p>}
-        </td>
-        <td className="px-4 py-3">
-          <p className="text-sm text-slate-700 font-medium">{rental.guest_name}</p>
-          <p className="text-xs text-slate-400">{rental.room_number ? `Phòng ${rental.room_number}` : 'Chưa xếp phòng'}</p>
-        </td>
-        <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
+      <TableRow className="cursor-pointer" onClick={onExpand}>
+        <TableCell>
+          <p className="text-sm font-semibold text-foreground">{rental.bike_name}</p>
+          {rental.plate_number && <p className="font-mono text-xs text-muted-foreground">{rental.plate_number}</p>}
+        </TableCell>
+        <TableCell>
+          <p className="text-sm font-medium text-foreground">{rental.guest_name}</p>
+          <p className="text-xs text-muted-foreground">{rental.room_number ? `Phòng ${rental.room_number}` : 'Chưa xếp phòng'}</p>
+        </TableCell>
+        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDate(rental.start_date)} → {formatDate(rental.end_date)}
-          <div className="text-slate-400">{rental.num_days} ngày</div>
-        </td>
-        <td className="px-4 py-3 text-sm font-medium text-slate-700 whitespace-nowrap">{formatVND(rental.total_amount)}</td>
-        <td className="px-4 py-3 whitespace-nowrap">
+          <div className="text-muted-foreground/70">{rental.num_days} ngày</div>
+        </TableCell>
+        <TableCell className="whitespace-nowrap text-sm font-medium text-foreground">{formatVND(rental.total_amount)}</TableCell>
+        <TableCell className="whitespace-nowrap">
           {outstanding > 0 ? (
-            <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-1 rounded-full">Còn {formatVND(outstanding)}</span>
+            <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-600">Còn {formatVND(outstanding)}</span>
           ) : (
-            <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">✓ Đã đủ</span>
+            <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-600">✓ Đã đủ</span>
           )}
-        </td>
-        <td className="px-4 py-3">
-          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.badge}`}>{cfg.label}</span>
-        </td>
-        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-          <div className="flex gap-1.5 flex-wrap">
+        </TableCell>
+        <TableCell>
+          <span className={cn('rounded-full px-2 py-1 text-xs font-semibold', cfg.badge)}>{cfg.label}</span>
+        </TableCell>
+        <TableCell onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-wrap gap-1.5">
             {rental.status === 'ACTIVE' && outstanding > 0 && (
-              <button onClick={() => onPay(rental)} className="text-xs px-2.5 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 whitespace-nowrap">Thu tiền</button>
+              <Button size="sm" className="bg-emerald-500 text-white hover:bg-emerald-600" onClick={() => onPay(rental)}>Thu tiền</Button>
             )}
             {rental.status === 'ACTIVE' && (
-              <button onClick={() => onReturn(rental)} className="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 whitespace-nowrap">Trả xe</button>
+              <Button variant="secondary" size="sm" onClick={() => onReturn(rental)}>Trả xe</Button>
             )}
             {rental.status === 'ACTIVE' && isAdmin && (
-              <button onClick={() => onCancel(rental)} className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 whitespace-nowrap">Hủy</button>
+              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => onCancel(rental)}>Hủy</Button>
             )}
           </div>
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
       {expanded && (
-        <tr>
-          <td colSpan={7} className="px-4 pb-3 bg-slate-50">
-            <div className="pl-2 border-l-2 border-blue-200">
-              <p className="text-xs font-semibold text-slate-500 mb-2 mt-2 uppercase tracking-wide">
+        <TableRow className="hover:bg-transparent">
+          <TableCell colSpan={7} className="bg-muted/40">
+            <div className="border-l-2 border-blue-200 pl-3">
+              <p className="mb-2 mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Lịch sử thanh toán {rental.payments.length > 0 ? `(${rental.payments.length})` : '— Chưa có'}
               </p>
               {rental.payments.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">Chưa thu tiền</p>
+                <p className="text-xs italic text-muted-foreground">Chưa thu tiền</p>
               ) : (
                 <div className="space-y-1.5">
                   {rental.payments.map((p) => (
-                    <div key={p.id} className="flex items-center gap-3 text-xs text-slate-600">
-                      <span className="text-slate-400 w-24 flex-shrink-0">
+                    <div key={p.id} className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="w-24 flex-shrink-0 text-muted-foreground">
                         {new Date(p.paid_at).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })}
                       </span>
-                      <span className="font-semibold text-green-700">{formatVND(p.amount)}</span>
-                      <span className="text-slate-400">{METHOD_LABEL[p.method] ?? p.method}</span>
-                      {p.recorded_by_name && <span className="text-slate-400">· {p.recorded_by_name}</span>}
-                      {p.notes && <span className="italic text-slate-400">— {p.notes}</span>}
+                      <span className="font-semibold text-emerald-700">{formatVND(p.amount)}</span>
+                      <span>{METHOD_LABEL[p.method] ?? p.method}</span>
+                      {p.recorded_by_name && <span>· {p.recorded_by_name}</span>}
+                      {p.notes && <span className="italic">— {p.notes}</span>}
                     </div>
                   ))}
                 </div>
               )}
               {rental.created_by_name && (
-                <p className="text-xs text-slate-400 mt-2">
+                <p className="mt-2 text-xs text-muted-foreground">
                   Tạo bởi: {rental.created_by_name} · {new Date(rental.created_at).toLocaleDateString('vi-VN')}
                 </p>
               )}
             </div>
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
     </>
   )
@@ -457,22 +468,17 @@ function RentalRow({
 
 // ─── Report tab ───────────────────────────────────────────────────────────────
 
-function ReportSection({
-  report, loading,
-}: {
-  report: BikeRentalReport | null
-  loading: boolean
-}) {
+function ReportSection({ report, loading }: { report: BikeRentalReport | null; loading: boolean }) {
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
-  if (loading) return <p className="text-sm text-slate-400 py-8 text-center">Đang tải...</p>
+  if (loading) return <p className="py-8 text-center text-sm text-muted-foreground">Đang tải...</p>
   if (!report) return null
 
   if (report.rows.length === 0) {
     return (
-      <div className="text-center py-16">
-        <p className="text-4xl mb-3">🏍️</p>
-        <p className="text-slate-400 text-sm">Không có dữ liệu thuê xe trong kỳ này</p>
+      <div className="py-16 text-center">
+        <p className="mb-3 text-4xl">🏍️</p>
+        <p className="text-sm text-muted-foreground">Không có dữ liệu thuê xe trong kỳ này</p>
       </div>
     )
   }
@@ -482,28 +488,28 @@ function ReportSection({
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Doanh thu dự kiến', value: report.grand_expected, color: 'text-slate-800' },
-          { label: 'Đã thu', value: report.grand_collected, color: 'text-green-600' },
+          { label: 'Doanh thu dự kiến', value: report.grand_expected, color: 'text-foreground' },
+          { label: 'Đã thu', value: report.grand_collected, color: 'text-emerald-600' },
           { label: 'Còn lại', value: report.grand_outstanding, color: 'text-red-600' },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-            <p className="text-xs text-slate-500 mb-1">{label}</p>
-            <p className={`text-lg font-bold ${color}`}>{formatVND(value)}</p>
+          <div key={label} className="rounded-xl border bg-card p-4 shadow-sm">
+            <p className="mb-1 text-xs text-muted-foreground">{label}</p>
+            <p className={cn('text-lg font-bold', color)}>{formatVND(value)}</p>
           </div>
         ))}
       </div>
 
       {/* Per-booking rows */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-gray-200">
-            <tr>
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
               {['Phòng / Khách', 'Ngày ở', 'Xe thuê', 'Dự kiến', 'Đã thu', 'Còn lại'].map((h) => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                <TableHead key={h} className="whitespace-nowrap uppercase tracking-wide">{h}</TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {report.rows.map((row) => (
               <ReportBookingRow
                 key={row.booking_id}
@@ -512,70 +518,64 @@ function ReportSection({
                 onExpand={() => setExpandedId((id) => id === row.booking_id ? null : row.booking_id)}
               />
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   )
 }
 
-function ReportBookingRow({
-  row, expanded, onExpand,
-}: {
-  row: BikeRentalReportRow
-  expanded: boolean
-  onExpand: () => void
-}) {
+function ReportBookingRow({ row, expanded, onExpand }: { row: BikeRentalReportRow; expanded: boolean; onExpand: () => void }) {
   return (
     <>
-      <tr className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={onExpand}>
-        <td className="px-4 py-3">
-          <p className="font-semibold text-slate-800">{row.room_number ? `Phòng ${row.room_number}` : 'Chưa xếp'}</p>
-          <p className="text-xs text-slate-500">{row.guest_name}</p>
-        </td>
-        <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
+      <TableRow className="cursor-pointer" onClick={onExpand}>
+        <TableCell>
+          <p className="font-semibold text-foreground">{row.room_number ? `Phòng ${row.room_number}` : 'Chưa xếp'}</p>
+          <p className="text-xs text-muted-foreground">{row.guest_name}</p>
+        </TableCell>
+        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDate(row.check_in_date)} → {formatDate(row.check_out_date)}
-        </td>
-        <td className="px-4 py-3">
+        </TableCell>
+        <TableCell>
           <div className="flex flex-wrap gap-1">
             {row.rentals.map((r) => (
-              <span key={r.id} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{r.bike_name}</span>
+              <span key={r.id} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">{r.bike_name}</span>
             ))}
           </div>
-        </td>
-        <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">{formatVND(row.total_expected)}</td>
-        <td className="px-4 py-3 text-green-600 font-medium whitespace-nowrap">{formatVND(row.total_collected)}</td>
-        <td className="px-4 py-3 whitespace-nowrap">
+        </TableCell>
+        <TableCell className="whitespace-nowrap font-medium text-foreground">{formatVND(row.total_expected)}</TableCell>
+        <TableCell className="whitespace-nowrap font-medium text-emerald-600">{formatVND(row.total_collected)}</TableCell>
+        <TableCell className="whitespace-nowrap">
           {Number(row.outstanding) > 0 ? (
             <span className="font-bold text-red-600">{formatVND(row.outstanding)}</span>
           ) : (
-            <span className="text-green-600 text-xs font-semibold">✓ Đủ</span>
+            <span className="text-xs font-semibold text-emerald-600">✓ Đủ</span>
           )}
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
       {expanded && (
-        <tr>
-          <td colSpan={6} className="bg-slate-50 px-6 pb-3">
-            <div className="space-y-2 mt-2">
+        <TableRow className="hover:bg-transparent">
+          <TableCell colSpan={6} className="bg-muted/40">
+            <div className="mt-1 space-y-2">
               {row.rentals.map((r) => {
                 const paidForRental = Number(r.collected_amount)
                 return (
-                  <div key={r.id} className="flex items-center gap-4 text-xs text-slate-600 bg-white rounded-lg px-3 py-2 border border-gray-100">
-                    <span className="font-semibold w-28 flex-shrink-0">{r.bike_name}</span>
-                    <span className="text-slate-400">{formatDate(r.start_date)} → {formatDate(r.end_date)} ({r.num_days} ngày)</span>
-                    <span className="ml-auto font-medium">{formatVND(r.total_amount)}</span>
-                    <span className={paidForRental >= Number(r.total_amount) ? 'text-green-600' : 'text-red-600'}>
+                  <div key={r.id} className="flex items-center gap-4 rounded-lg border bg-card px-3 py-2 text-xs text-muted-foreground">
+                    <span className="w-28 flex-shrink-0 font-semibold text-foreground">{r.bike_name}</span>
+                    <span>{formatDate(r.start_date)} → {formatDate(r.end_date)} ({r.num_days} ngày)</span>
+                    <span className="ml-auto font-medium text-foreground">{formatVND(r.total_amount)}</span>
+                    <span className={paidForRental >= Number(r.total_amount) ? 'text-emerald-600' : 'text-red-600'}>
                       {paidForRental >= Number(r.total_amount) ? '✓ Đã thu' : `Còn ${formatVND(Number(r.total_amount) - paidForRental)}`}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full ${RENTAL_STATUS_CFG[r.status]?.badge ?? ''}`}>
+                    <span className={cn('rounded-full px-2 py-0.5', RENTAL_STATUS_CFG[r.status]?.badge ?? '')}>
                       {RENTAL_STATUS_CFG[r.status]?.label ?? r.status}
                     </span>
                   </div>
                 )
               })}
             </div>
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
     </>
   )
@@ -672,36 +672,39 @@ export default function BikeRentalsPage() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-7xl">
+      <div className="mx-auto max-w-7xl p-4 md:p-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">🏍️ Cho thuê xe máy</h1>
-            <p className="text-sm text-slate-500 mt-1">Quản lý đội xe và doanh thu thuê xe</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">🏍️ Cho thuê xe máy</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Quản lý đội xe và doanh thu thuê xe</p>
           </div>
           <div className="flex gap-2">
             {tab === 'fleet' && isAdmin && (
-              <button onClick={() => { setEditingBike(null); setShowBikeForm(true) }} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                + Thêm xe
-              </button>
+              <Button onClick={() => { setEditingBike(null); setShowBikeForm(true) }}>
+                <Plus className="h-4 w-4" /> Thêm xe
+              </Button>
             )}
             {tab === 'rentals' && (
-              <button onClick={() => setShowAddRental(true)} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                + Thêm thuê xe
-              </button>
+              <Button onClick={() => setShowAddRental(true)}>
+                <Plus className="h-4 w-4" /> Thêm thuê xe
+              </Button>
             )}
           </div>
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit mb-6">
-          {(['fleet', 'rentals', 'report'] as Tab[]).map((t) => (
+        <div className="mb-6 inline-flex w-fit gap-1 rounded-lg bg-muted p-1">
+          {(['fleet', 'rentals', 'report'] as Tab[]).map((tk) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === t ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              key={tk}
+              onClick={() => setTab(tk)}
+              className={cn(
+                'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+                tab === tk ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
             >
-              {TAB_LABELS[t]}
+              {TAB_LABELS[tk]}
             </button>
           ))}
         </div>
@@ -709,13 +712,13 @@ export default function BikeRentalsPage() {
         {/* ── Fleet tab ── */}
         {tab === 'fleet' && (
           bikes.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-5xl mb-4">🏍️</p>
-              <p className="text-slate-500 text-sm mb-4">Chưa có xe nào. Thêm xe để bắt đầu.</p>
-              {isAdmin && <button onClick={() => setShowBikeForm(true)} className="bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700">Thêm xe đầu tiên</button>}
+            <div className="py-20 text-center">
+              <p className="mb-4 text-5xl">🏍️</p>
+              <p className="mb-4 text-sm text-muted-foreground">Chưa có xe nào. Thêm xe để bắt đầu.</p>
+              {isAdmin && <Button size="lg" onClick={() => setShowBikeForm(true)}>Thêm xe đầu tiên</Button>}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {bikes.map((b) => (
                 <BikeCard
                   key={b.id} bike={b} isAdmin={isAdmin}
@@ -730,33 +733,36 @@ export default function BikeRentalsPage() {
         {/* ── Rentals tab ── */}
         {tab === 'rentals' && (
           <div className="space-y-4">
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-2">
               {[['ALL', 'Tất cả'], ['ACTIVE', 'Đang thuê'], ['RETURNED', 'Đã trả'], ['CANCELLED', 'Đã hủy']].map(([v, l]) => (
                 <button
                   key={v}
                   onClick={() => setStatusFilter(v)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${statusFilter === v ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 text-slate-600 hover:border-slate-400'}`}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                    statusFilter === v ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:border-foreground/30'
+                  )}
                 >
                   {l}
                 </button>
               ))}
             </div>
             {rentals.length === 0 ? (
-              <div className="text-center py-16 bg-white border border-gray-200 rounded-xl">
-                <p className="text-3xl mb-3">📋</p>
-                <p className="text-slate-400 text-sm">Không có thuê xe nào</p>
+              <div className="rounded-xl border bg-card py-16 text-center">
+                <p className="mb-3 text-3xl">📋</p>
+                <p className="text-sm text-muted-foreground">Không có thuê xe nào</p>
               </div>
             ) : (
-              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-gray-200">
-                    <tr>
+              <div className="overflow-hidden rounded-xl border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
                       {['Xe', 'Khách / Phòng', 'Thời gian', 'Tổng tiền', 'Thanh toán', 'Trạng thái', 'Thao tác'].map((h) => (
-                        <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                        <TableHead key={h} className="whitespace-nowrap uppercase tracking-wide">{h}</TableHead>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {rentals.map((r) => (
                       <RentalRow
                         key={r.id} rental={r} isAdmin={isAdmin}
@@ -767,8 +773,8 @@ export default function BikeRentalsPage() {
                         expanded={expandedRentalId === r.id}
                       />
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>
@@ -778,11 +784,15 @@ export default function BikeRentalsPage() {
         {tab === 'report' && (
           <div className="space-y-5">
             <div className="flex items-center gap-3">
-              <button onClick={() => setReportMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))} className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500">‹</button>
-              <span className="text-base font-bold text-slate-800 min-w-[180px] text-center capitalize">
+              <Button variant="outline" size="icon" onClick={() => setReportMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="min-w-[180px] text-center text-base font-bold capitalize text-foreground">
                 {reportMonth.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}
               </span>
-              <button onClick={() => setReportMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))} className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500">›</button>
+              <Button variant="outline" size="icon" onClick={() => setReportMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
             <ReportSection report={report} loading={reportLoading} />
           </div>
@@ -800,16 +810,20 @@ export default function BikeRentalsPage() {
         <AddBikePaymentModal rental={payRental} onClose={() => setPayRental(null)} onSaved={handlePaymentSaved} />
       )}
       {confirmDelete && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-2">Xác nhận xóa</h3>
-            <p className="text-sm text-slate-600 mb-6">Bạn có chắc muốn {confirmDelete.type === 'bike' ? 'xóa xe' : 'hủy thuê xe'} <strong>{confirmDelete.label}</strong>?</p>
-            <div className="flex gap-3">
-              <button onClick={() => setConfirmDelete(null)} className="flex-1 border border-slate-300 text-slate-700 text-sm py-2.5 rounded-xl hover:bg-slate-50">Hủy</button>
-              <button onClick={handleConfirmedDelete} className="flex-1 bg-red-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-red-700">Xác nhận</button>
-            </div>
-          </div>
-        </div>
+        <Dialog open onOpenChange={(o) => { if (!o) setConfirmDelete(null) }}>
+          <DialogContent className="max-w-sm" showClose={false}>
+            <DialogHeader>
+              <DialogTitle>Xác nhận xóa</DialogTitle>
+              <DialogDescription>
+                Bạn có chắc muốn {confirmDelete.type === 'bike' ? 'xóa xe' : 'hủy thuê xe'} <strong className="text-foreground">{confirmDelete.label}</strong>?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" size="lg" className="flex-1" onClick={() => setConfirmDelete(null)}>Hủy</Button>
+              <Button variant="destructive" size="lg" className="flex-1" onClick={handleConfirmedDelete}>Xác nhận</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </Layout>
   )

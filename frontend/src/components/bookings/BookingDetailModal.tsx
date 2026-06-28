@@ -1,18 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { X } from 'lucide-react'
 import type { Bike, BikeRental, Booking, Payment } from '../../types'
 import { bikesApi, bookingsApi } from '../../services/api'
 import { formatDate, formatVND } from '../../utils/format'
 import ReceiptPrint from '../print/ReceiptPrint'
 import OD1Print from '../print/OD1Print'
 import ConfirmationPrint from '../print/ConfirmationPrint'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 const STATUS_BADGE: Record<string, string> = {
   CONFIRMED:   'bg-blue-100 text-blue-700',
-  CHECKED_IN:  'bg-green-100 text-green-700',
-  CHECKED_OUT: 'bg-gray-100 text-gray-600',
+  CHECKED_IN:  'bg-emerald-100 text-emerald-700',
+  CHECKED_OUT: 'bg-muted text-muted-foreground',
   CANCELLED:   'bg-red-100 text-red-600',
-  NO_SHOW:     'bg-yellow-100 text-yellow-700',
+  NO_SHOW:     'bg-amber-100 text-amber-700',
 }
 
 const METHOD_ICON: Record<string, string> = {
@@ -20,6 +24,9 @@ const METHOD_ICON: Record<string, string> = {
   BANK_TRANSFER: '🏦',
   OTA_COLLECTED: '🌐',
 }
+
+const SELECT_CLASS =
+  'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
 
 function nightCount(checkIn: string, checkOut: string): number {
   return Math.round(
@@ -132,75 +139,63 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
       <div
-        className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden"
+        className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-card shadow-2xl sm:max-w-lg sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-start justify-between border-b border-border px-5 pb-4 pt-5">
           <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h2 className="text-base font-bold text-slate-800">Đặt phòng #{booking.id}</h2>
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_BADGE[booking.status] ?? 'bg-gray-100 text-gray-600'}`}>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-base font-bold text-foreground">Đặt phòng #{booking.id}</h2>
+              <span className={cn('rounded-full px-2.5 py-1 text-xs font-semibold', STATUS_BADGE[booking.status] ?? 'bg-muted text-muted-foreground')}>
                 {t(`status.${booking.status}` as any)}
               </span>
             </div>
             {booking.booking_ref && (
-              <p className="text-xs text-slate-400 mt-1">Mã: {booking.booking_ref}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Mã: {booking.booking_ref}</p>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 text-xl ml-2 flex-shrink-0 transition-colors"
-          >
-            ×
-          </button>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} className="ml-2 shrink-0 text-muted-foreground">
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
 
           {/* Dates + room */}
           <Section title="Thông tin phòng">
             <Row label="Phòng">
               {booking.room_number ? (
-                <span className="font-semibold text-slate-800">Phòng {booking.room_number}</span>
+                <span className="font-semibold text-foreground">Phòng {booking.room_number}</span>
               ) : (
-                <span className="text-xs text-orange-600 font-medium bg-orange-50 px-2 py-0.5 rounded-full">Chưa xếp phòng</span>
+                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600">Chưa xếp phòng</span>
               )}
             </Row>
             <Row label="Nhận phòng"><span className="font-medium">{formatDate(booking.check_in_date)}</span></Row>
             <Row label="Trả phòng"><span className="font-medium">{formatDate(booking.check_out_date)}</span></Row>
-            <Row label="Số đêm">
-              <span className="font-medium">{nights} đêm</span>
-            </Row>
-            <Row label="Số khách">
-              <span>{booking.num_guests} khách</span>
-            </Row>
-            <Row label="Kênh đặt">
-              <span>{t(`ota.${booking.ota_source}` as any)}</span>
-            </Row>
+            <Row label="Số đêm"><span className="font-medium">{nights} đêm</span></Row>
+            <Row label="Số khách"><span>{booking.num_guests} khách</span></Row>
+            <Row label="Kênh đặt"><span>{t(`ota.${booking.ota_source}` as any)}</span></Row>
           </Section>
 
           {/* Guest info */}
           <Section title="Thông tin khách">
             <Row label="Họ tên">
-              <span className="font-semibold text-slate-800">{booking.guest_name}</span>
+              <span className="font-semibold text-foreground">{booking.guest_name}</span>
             </Row>
             {booking.guest_phone && (
               <Row label="Số điện thoại">
-                <a
-                  href={`tel:${booking.guest_phone}`}
-                  className="text-blue-600 hover:underline font-medium"
-                >
+                <a href={`tel:${booking.guest_phone}`} className="font-medium text-primary hover:underline">
                   {booking.guest_phone}
                 </a>
               </Row>
             )}
             {booking.guest_id_type && (
               <Row label={ID_TYPE_LABEL[booking.guest_id_type] ?? booking.guest_id_type}>
-                <span className="font-mono text-slate-700">{booking.guest_id_number ?? '—'}</span>
+                <span className="font-mono text-foreground">{booking.guest_id_number ?? '—'}</span>
               </Row>
             )}
           </Section>
@@ -208,10 +203,10 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
           {/* Payment */}
           <Section title="Thanh toán">
             <Row label="Tổng tiền">
-              <span className="font-semibold text-slate-800">{formatVND(booking.total_price)}</span>
+              <span className="font-semibold text-foreground">{formatVND(booking.total_price)}</span>
             </Row>
             <Row label="Đã thu">
-              <span className="font-semibold text-green-600">{formatVND(booking.collected_amount)}</span>
+              <span className="font-semibold text-emerald-600">{formatVND(booking.collected_amount)}</span>
             </Row>
             {outstanding > 0 && (
               <Row label="Còn lại">
@@ -220,7 +215,7 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
             )}
             {outstanding === 0 && (
               <Row label="">
-                <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">✓ Đã thanh toán đủ</span>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-600">✓ Đã thanh toán đủ</span>
               </Row>
             )}
           </Section>
@@ -228,26 +223,26 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
           {/* Payment history */}
           <Section title={`Lịch sử thanh toán${payments.length > 0 ? ` (${payments.length})` : ''}`}>
             {loadingPayments ? (
-              <p className="text-xs text-slate-400 py-2">Đang tải...</p>
+              <p className="py-2 text-xs text-muted-foreground">Đang tải...</p>
             ) : payments.length === 0 ? (
-              <p className="text-xs text-slate-400 py-1">Chưa có thanh toán nào</p>
+              <p className="py-1 text-xs text-muted-foreground">Chưa có thanh toán nào</p>
             ) : (
               <div className="space-y-2">
                 {payments.map((p) => (
-                  <div key={p.id} className="flex items-start gap-3 rounded-lg bg-slate-50 px-3 py-2.5">
-                    <span className="text-base mt-0.5">{METHOD_ICON[p.method] ?? '💰'}</span>
-                    <div className="flex-1 min-w-0">
+                  <div key={p.id} className="flex items-start gap-3 rounded-lg bg-background px-3 py-2.5">
+                    <span className="mt-0.5 text-base">{METHOD_ICON[p.method] ?? '💰'}</span>
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-sm font-semibold text-slate-700">{formatVND(p.amount)}</span>
-                        <span className="text-xs text-slate-400 whitespace-nowrap">
+                        <span className="text-sm font-semibold text-foreground">{formatVND(p.amount)}</span>
+                        <span className="whitespace-nowrap text-xs text-muted-foreground">
                           {new Date(p.paid_at).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {t(`paymentMethod.${p.method}` as any)}
-                        {p.recorded_by_name && <span className="text-slate-400"> · {p.recorded_by_name}</span>}
+                        {p.recorded_by_name && <span className="text-muted-foreground/70"> · {p.recorded_by_name}</span>}
                       </p>
-                      {p.notes && <p className="text-xs text-slate-400 mt-0.5 italic">{p.notes}</p>}
+                      {p.notes && <p className="mt-0.5 text-xs italic text-muted-foreground">{p.notes}</p>}
                     </div>
                   </div>
                 ))}
@@ -258,29 +253,22 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
           {/* Bike rentals */}
           {!loadingPayments && (
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   🏍️ Xe máy{bikeRentals.length > 0 ? ` (${bikeRentals.length})` : ''}
                 </p>
                 {isActive && !showAddBikeRental && (
-                  <button
-                    onClick={openAddBikeRental}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
-                  >
+                  <Button variant="ghost" size="sm" onClick={openAddBikeRental} className="text-primary hover:text-primary">
                     + Thêm thuê xe
-                  </button>
+                  </Button>
                 )}
               </div>
 
               {/* Inline add form */}
               {showAddBikeRental && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3 space-y-2.5">
+                <div className="mb-3 space-y-2.5 rounded-xl border border-blue-200 bg-blue-50 p-3">
                   <p className="text-xs font-semibold text-blue-700">Thêm thuê xe máy</p>
-                  <select
-                    value={addBikeId}
-                    onChange={(e) => setAddBikeId(e.target.value)}
-                    className="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
+                  <select value={addBikeId} onChange={(e) => setAddBikeId(e.target.value)} className={cn(SELECT_CLASS, 'bg-card')}>
                     <option value="">-- Chọn xe --</option>
                     {availableBikes.filter((b) => b.status !== 'MAINTENANCE').map((b) => (
                       <option key={b.id} value={b.id}>
@@ -291,38 +279,32 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
                   </select>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <p className="text-[10px] text-slate-500 mb-1">Ngày nhận</p>
-                      <input type="date" value={addStartDate} onChange={(e) => setAddStartDate(e.target.value)}
-                        className="w-full border border-slate-300 bg-white rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <p className="mb-1 text-[10px] text-muted-foreground">Ngày nhận</p>
+                      <Input type="date" value={addStartDate} onChange={(e) => setAddStartDate(e.target.value)} className="h-9 bg-card" />
                     </div>
                     <div>
-                      <p className="text-[10px] text-slate-500 mb-1">Ngày trả</p>
-                      <input type="date" value={addEndDate} onChange={(e) => setAddEndDate(e.target.value)}
-                        className="w-full border border-slate-300 bg-white rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <p className="mb-1 text-[10px] text-muted-foreground">Ngày trả</p>
+                      <Input type="date" value={addEndDate} onChange={(e) => setAddEndDate(e.target.value)} className="h-9 bg-card" />
                     </div>
                   </div>
                   {selectedAddBike && (
-                    <p className="text-xs text-blue-700 font-medium">
+                    <p className="text-xs font-medium text-blue-700">
                       {addDays} ngày × {formatVND(selectedAddBike.daily_rate)} = <strong>{formatVND(addPreview)}</strong>
                     </p>
                   )}
-                  {addError && <p className="text-xs text-red-600">{addError}</p>}
+                  {addError && <p className="text-xs text-destructive">{addError}</p>}
                   <div className="flex gap-2">
-                    <button onClick={() => setShowAddBikeRental(false)}
-                      className="flex-1 text-xs py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50">
-                      Hủy
-                    </button>
-                    <button onClick={handleAddBikeRental} disabled={addSaving}
-                      className="flex-1 text-xs py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowAddBikeRental(false)}>Hủy</Button>
+                    <Button size="sm" className="flex-1" onClick={handleAddBikeRental} disabled={addSaving}>
                       {addSaving ? 'Đang lưu...' : 'Xác nhận'}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
 
-              <div className="bg-slate-50 rounded-xl px-4 py-1 divide-y divide-slate-100">
+              <div className="divide-y divide-border rounded-xl bg-background px-4 py-1">
                 {bikeRentals.length === 0 && !showAddBikeRental ? (
-                  <p className="text-xs text-slate-400 py-2.5">Không có thuê xe nào</p>
+                  <p className="py-2.5 text-xs text-muted-foreground">Không có thuê xe nào</p>
                 ) : (
                   bikeRentals.map((r) => {
                     const bikeOutstanding = Number(r.total_amount) - Number(r.collected_amount)
@@ -330,28 +312,29 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
                       <div key={r.id} className="py-2.5">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="text-sm font-semibold text-slate-700">{r.bike_name}</p>
-                            {r.plate_number && <p className="text-xs text-slate-400 font-mono">{r.plate_number}</p>}
+                            <p className="text-sm font-semibold text-foreground">{r.bike_name}</p>
+                            {r.plate_number && <p className="font-mono text-xs text-muted-foreground">{r.plate_number}</p>}
                           </div>
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                            r.status === 'ACTIVE'    ? 'bg-blue-100 text-blue-700' :
-                            r.status === 'RETURNED'  ? 'bg-gray-100 text-gray-600' :
-                                                       'bg-red-100 text-red-600'
-                          }`}>
+                          <span className={cn(
+                            'flex-shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                            r.status === 'ACTIVE'   ? 'bg-blue-100 text-blue-700' :
+                            r.status === 'RETURNED' ? 'bg-muted text-muted-foreground' :
+                                                      'bg-red-100 text-red-600'
+                          )}>
                             {r.status === 'ACTIVE' ? 'Đang thuê' : r.status === 'RETURNED' ? 'Đã trả' : 'Đã hủy'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="mt-0.5 text-xs text-muted-foreground">
                           {formatDate(r.start_date)} → {formatDate(r.end_date)} · {r.num_days} ngày
                         </p>
-                        <div className="flex items-center justify-between mt-1 text-xs">
-                          <span className="text-slate-400">{formatVND(r.daily_rate)}/ngày × {r.num_days}</span>
-                          <span className="font-semibold text-slate-700">{formatVND(r.total_amount)}</span>
+                        <div className="mt-1 flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{formatVND(r.daily_rate)}/ngày × {r.num_days}</span>
+                          <span className="font-semibold text-foreground">{formatVND(r.total_amount)}</span>
                         </div>
                         {bikeOutstanding > 0 ? (
-                          <p className="text-xs font-semibold text-red-600 mt-0.5">Còn lại: {formatVND(bikeOutstanding)}</p>
+                          <p className="mt-0.5 text-xs font-semibold text-red-600">Còn lại: {formatVND(bikeOutstanding)}</p>
                         ) : r.status !== 'CANCELLED' && (
-                          <p className="text-xs font-semibold text-green-600 mt-0.5">✓ Đã thanh toán đủ</p>
+                          <p className="mt-0.5 text-xs font-semibold text-emerald-600">✓ Đã thanh toán đủ</p>
                         )}
                       </div>
                     )
@@ -364,56 +347,48 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
           {/* Notes */}
           {booking.notes && (
             <Section title="Ghi chú">
-              <p className="text-sm text-slate-600 leading-relaxed">{booking.notes}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">{booking.notes}</p>
             </Section>
           )}
         </div>
 
         {/* Actions footer */}
-        <div className="flex-shrink-0 px-5 pb-5 pt-3 border-t border-gray-100 space-y-2">
+        <div className="flex-shrink-0 space-y-2 border-t border-border px-5 pb-5 pt-3">
           {/* Primary actions — active bookings only */}
           {!isTerminal && (
             <div className="flex flex-wrap gap-2">
               {booking.status === 'CONFIRMED' && (
-                <button
+                <Button
+                  size="lg"
                   onClick={() => { onClose(); onAction(booking, 'check_in') }}
-                  className={`flex-1 min-w-[100px] text-sm font-semibold py-2.5 rounded-xl transition-colors ${
-                    booking.room_id
-                      ? 'bg-green-500 hover:bg-green-600 text-white'
-                      : 'bg-orange-400 hover:bg-orange-500 text-white'
-                  }`}
+                  className={cn('min-w-[100px] flex-1 text-white', booking.room_id ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-orange-400 hover:bg-orange-500')}
                 >
                   Nhận phòng
-                </button>
+                </Button>
               )}
               {booking.status === 'CHECKED_IN' && (
-                <button
+                <Button
+                  size="lg"
                   onClick={() => { onClose(); onAction(booking, 'check_out') }}
-                  className="flex-1 min-w-[100px] text-sm font-semibold py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                  className="min-w-[100px] flex-1 bg-blue-500 text-white hover:bg-blue-600"
                 >
                   Trả phòng
-                </button>
+                </Button>
               )}
               {isActive && (
-                <button
-                  onClick={() => { onClose(); onPay(booking) }}
-                  className="flex-1 min-w-[100px] text-sm font-semibold py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                >
+                <Button variant="secondary" size="lg" onClick={() => { onClose(); onPay(booking) }} className="min-w-[100px] flex-1">
                   Thu tiền
-                </button>
+                </Button>
               )}
               {isActive && (
-                <button
-                  onClick={() => { onClose(); onEdit(booking) }}
-                  className="flex-1 min-w-[100px] text-sm font-medium py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-                >
+                <Button variant="outline" size="lg" onClick={() => { onClose(); onEdit(booking) }} className="min-w-[100px] flex-1">
                   Sửa
-                </button>
+                </Button>
               )}
               {booking.status === 'CHECKED_IN' && !showLateCheckout && (
                 <button
                   onClick={() => { setShowLateCheckout(true); setLateError('') }}
-                  className="w-full text-xs font-medium py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors"
+                  className="w-full rounded-xl border border-amber-300 bg-amber-50 py-2 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100"
                 >
                   🕐 Phụ thu trả phòng muộn
                 </button>
@@ -423,84 +398,44 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
 
           {/* Late checkout inline form */}
           {showLateCheckout && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+            <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs font-semibold text-amber-700">Phụ thu trả phòng muộn</p>
-              <input
-                type="number"
-                placeholder="Số tiền phụ thu (VND)"
-                value={lateAmount}
-                onChange={(e) => setLateAmount(e.target.value)}
-                className="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-              <input
-                type="text"
-                placeholder="Ghi chú (không bắt buộc)"
-                value={lateNotes}
-                onChange={(e) => setLateNotes(e.target.value)}
-                className="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-              {lateError && <p className="text-xs text-red-600">{lateError}</p>}
+              <Input type="number" placeholder="Số tiền phụ thu (VND)" value={lateAmount} onChange={(e) => setLateAmount(e.target.value)} className="h-9 bg-card" />
+              <Input type="text" placeholder="Ghi chú (không bắt buộc)" value={lateNotes} onChange={(e) => setLateNotes(e.target.value)} className="h-9 bg-card" />
+              {lateError && <p className="text-xs text-destructive">{lateError}</p>}
               <div className="flex gap-2">
-                <button
-                  onClick={() => setShowLateCheckout(false)}
-                  className="flex-1 text-xs py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={handleLateCheckout}
-                  disabled={lateSaving}
-                  className="flex-1 text-xs py-1.5 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 disabled:opacity-50"
-                >
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowLateCheckout(false)}>Hủy</Button>
+                <Button size="sm" onClick={handleLateCheckout} disabled={lateSaving} className="flex-1 bg-amber-600 text-white hover:bg-amber-700">
                   {lateSaving ? 'Đang lưu...' : 'Xác nhận'}
-                </button>
+                </Button>
               </div>
             </div>
           )}
+
           {/* Print actions — always available */}
           <div className="flex gap-2">
-            <button
-              onClick={() => setShowConfirmation(true)}
-              className="flex-1 text-xs font-medium py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-            >
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowConfirmation(true)}>
               📄 Xác nhận phòng
-            </button>
-            <button
-              onClick={() => setShowReceipt(true)}
-              className="flex-1 text-xs font-medium py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-            >
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowReceipt(true)}>
               🖨️ Biên nhận
-            </button>
-            <button
-              onClick={() => setShowOD1(true)}
-              className="flex-1 text-xs font-medium py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-            >
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowOD1(true)}>
               📋 Tạm trú
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Print overlays */}
       {showReceipt && (
-        <ReceiptPrint
-          booking={booking}
-          payments={payments}
-          bikeRentals={bikeRentals}
-          onClose={() => setShowReceipt(false)}
-        />
+        <ReceiptPrint booking={booking} payments={payments} bikeRentals={bikeRentals} onClose={() => setShowReceipt(false)} />
       )}
       {showOD1 && (
-        <OD1Print
-          booking={booking}
-          onClose={() => setShowOD1(false)}
-        />
+        <OD1Print booking={booking} onClose={() => setShowOD1(false)} />
       )}
       {showConfirmation && (
-        <ConfirmationPrint
-          booking={booking}
-          onClose={() => setShowConfirmation(false)}
-        />
+        <ConfirmationPrint booking={booking} onClose={() => setShowConfirmation(false)} />
       )}
     </div>
   )
@@ -509,8 +444,8 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{title}</p>
-      <div className="bg-slate-50 rounded-xl px-4 py-1 divide-y divide-slate-100">
+      <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{title}</p>
+      <div className="divide-y divide-border rounded-xl bg-background px-4 py-1">
         {children}
       </div>
     </div>
@@ -519,9 +454,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between py-2.5 gap-3 min-h-[40px]">
-      {label && <span className="text-sm text-slate-500 flex-shrink-0 w-32">{label}</span>}
-      <div className="flex-1 text-right text-sm text-slate-700">{children}</div>
+    <div className="flex min-h-[40px] items-center justify-between gap-3 py-2.5">
+      {label && <span className="w-32 flex-shrink-0 text-sm text-muted-foreground">{label}</span>}
+      <div className="flex-1 text-right text-sm text-foreground">{children}</div>
     </div>
   )
 }

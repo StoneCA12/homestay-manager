@@ -44,32 +44,32 @@ export default function HousekeepingPage() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-6xl">
+      <div className="mx-auto max-w-6xl p-4 md:p-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">{t('housekeeping.title')}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('housekeeping.title')}</h1>
         </div>
 
-        <div className="flex gap-3 mb-8">
+        <div className="mb-8 flex flex-wrap gap-3">
           {ORDER.map((s) => {
             const cfg = STATUS_CONFIG[s]
             return (
               <div key={s} className={`rounded-xl border px-5 py-3 ${cfg.bg} ${cfg.border}`}>
-                <p className="text-2xl font-bold text-slate-800">{grouped[s].length}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{t(`roomStatus.${s}` as any)}</p>
+                <p className="text-2xl font-bold text-foreground">{grouped[s].length}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{t(`roomStatus.${s}` as any)}</p>
               </div>
             )
           })}
         </div>
 
-        {loading && <p className="text-slate-500">{t('bookings.loading')}</p>}
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {loading && <p className="text-muted-foreground">{t('bookings.loading')}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
         {!loading && ORDER.filter((s) => grouped[s].length > 0).map((s) => (
           <div key={s} className="mb-8">
-            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               {t(`roomStatus.${s}` as any)} ({grouped[s].length})
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {grouped[s].map((room) => (
                 <HousekeepingRoomCard
                   key={room.id}

@@ -1,14 +1,26 @@
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import {
+  Home,
+  CalendarDays,
+  Sparkles,
+  Bike,
+  Wallet,
+  Settings as SettingsIcon,
+  LogOut,
+  House,
+} from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 const NAV = [
-  { to: '/',             label: 'nav.dashboard',    icon: '🏠', minRole: 'RECEPTIONIST' },
-  { to: '/bookings',     label: 'nav.bookings',     icon: '📅', minRole: 'RECEPTIONIST' },
-  { to: '/housekeeping', label: 'nav.housekeeping', icon: '🧹', minRole: 'RECEPTIONIST' },
-  { to: '/xe-may',       label: 'nav.bikrentals',   icon: '🏍️', minRole: 'RECEPTIONIST' },
-  { to: '/revenue',      label: 'nav.revenue',      icon: '💰', minRole: 'ADMIN'        },
-  { to: '/settings',     label: 'nav.settings',     icon: '⚙️', minRole: 'ADMIN'        },
+  { to: '/', label: 'nav.dashboard', icon: Home, minRole: 'RECEPTIONIST' },
+  { to: '/bookings', label: 'nav.bookings', icon: CalendarDays, minRole: 'RECEPTIONIST' },
+  { to: '/housekeeping', label: 'nav.housekeeping', icon: Sparkles, minRole: 'RECEPTIONIST' },
+  { to: '/xe-may', label: 'nav.bikrentals', icon: Bike, minRole: 'RECEPTIONIST' },
+  { to: '/revenue', label: 'nav.revenue', icon: Wallet, minRole: 'ADMIN' },
+  { to: '/settings', label: 'nav.settings', icon: SettingsIcon, minRole: 'ADMIN' },
 ] as const
 
 type Role = 'OWNER' | 'ADMIN' | 'RECEPTIONIST'
@@ -19,61 +31,72 @@ function hasAccess(userRole: Role | undefined, minRole: string): boolean {
   return ROLE_RANK[userRole] >= ROLE_RANK[minRole as Role]
 }
 
-const ROLE_BADGE: Record<string, string> = {
-  OWNER:        'bg-purple-500/20 text-purple-300',
-  ADMIN:        'bg-blue-500/20 text-blue-300',
-  RECEPTIONIST: 'bg-slate-600 text-slate-300',
-}
-
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation()
   const { user, logout } = useAuth()
 
   const visibleNav = NAV.filter(({ minRole }) => hasAccess(user?.role as Role, minRole))
+  const initials =
+    user?.full_name?.split(' ').map((n) => n[0]).slice(-2).join('') ?? '?'
 
   return (
-    <aside className="w-56 min-h-screen bg-slate-800 flex flex-col">
+    <aside className="flex h-full min-h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       {/* Brand */}
-      <div className="px-6 py-5 border-b border-slate-700">
-        <span className="text-white font-bold text-lg tracking-tight">🏠 Homestay</span>
+      <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+          <House className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">Homestay</p>
+          <p className="truncate text-xs text-muted-foreground">{t('nav.dashboard')}</p>
+        </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {visibleNav.map(({ to, label, icon }) => (
+      <nav className="flex flex-1 flex-col gap-1 p-3">
+        {visibleNav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
+            onClick={onNavigate}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-              }`
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
+              )
             }
           >
-            <span className="text-base">{icon}</span>
-            {t(label as any)}
+            <Icon className="h-4 w-4 shrink-0" />
+            <span>{t(label as any)}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* User info + logout */}
-      <div className="px-4 py-4 border-t border-slate-700 space-y-3">
-        <div>
-          <p className="text-white text-sm font-medium truncate">{user?.full_name}</p>
-          <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE[user?.role ?? 'RECEPTIONIST']}`}>
-            {t(`role.${user?.role}` as any)}
-          </span>
+      <div className="space-y-3 border-t border-sidebar-border p-3">
+        <div className="flex items-center gap-2.5 rounded-lg px-1">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold uppercase text-sidebar-accent-foreground">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{user?.full_name}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {t(`role.${user?.role}` as any)}
+            </p>
+          </div>
         </div>
-        <button
+        <Button
+          type="button"
+          variant="ghost"
           onClick={logout}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white text-sm transition-colors"
+          className="w-full justify-start text-muted-foreground hover:text-foreground"
         >
-          <span>↩</span>
+          <LogOut className="h-4 w-4" />
           {t('nav.logout')}
-        </button>
+        </Button>
       </div>
     </aside>
   )

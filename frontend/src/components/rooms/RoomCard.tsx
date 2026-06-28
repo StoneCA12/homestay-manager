@@ -18,26 +18,26 @@ export default function RoomCard({ room }: { room: Room }) {
   const cfg = STATUS_CONFIG[room.display_status] ?? STATUS_CONFIG.AVAILABLE
 
   return (
-    <div className={`rounded-xl border-2 ${cfg.bg} ${cfg.border} p-4 flex flex-col gap-2 shadow-sm hover:shadow-md transition-shadow`}>
+    <div className={`flex flex-col gap-2 rounded-xl border-2 ${cfg.bg} ${cfg.border} p-4 shadow-sm transition-shadow hover:shadow-md`}>
       {/* Header */}
       <div className="flex items-start justify-between">
-        <span className="text-2xl font-bold text-slate-800">{room.room_number}</span>
-        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.badge}`}>
+        <span className="text-2xl font-bold text-foreground">{room.room_number}</span>
+        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${cfg.badge}`}>
           {t(`displayStatus.${room.display_status}` as any)}
         </span>
       </div>
 
       {/* Room type + floor */}
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted-foreground">
         {t(`roomType.${room.room_type}` as any)} · Tầng {room.floor} · {room.capacity} khách
       </p>
 
       {/* Guest info when occupied */}
       {room.guest_name && (
-        <div className="border-t border-dashed border-slate-200 pt-2 mt-1">
-          <p className="text-sm font-medium text-slate-700 truncate">{room.guest_name}</p>
+        <div className="mt-1 border-t border-dashed border-border pt-2">
+          <p className="truncate text-sm font-medium text-foreground">{room.guest_name}</p>
           {room.check_out_date && (
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Trả phòng:{' '}
               {new Date(room.check_out_date).toLocaleDateString('vi-VN', {
                 day: 'numeric', month: 'short',
@@ -45,7 +45,7 @@ export default function RoomCard({ room }: { room: Room }) {
             </p>
           )}
           {room.active_bike_names.length > 0 && (
-            <p className="text-xs text-purple-600 font-medium mt-1">
+            <p className="mt-1 text-xs font-medium text-purple-600">
               🏍️ {room.active_bike_names.join(', ')}
             </p>
           )}
@@ -53,7 +53,7 @@ export default function RoomCard({ room }: { room: Room }) {
       )}
 
       {/* Price */}
-      <p className="text-xs text-slate-400 mt-auto">{formatVND(room.base_price)}/đêm</p>
+      <p className="mt-auto text-xs text-muted-foreground">{formatVND(room.base_price)}/đêm</p>
     </div>
   )
 }

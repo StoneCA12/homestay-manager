@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Download } from 'lucide-react'
 import AddExpenseModal from '../../components/expenses/AddExpenseModal'
 import DailyReportPanel from '../../components/revenue/DailyReportPanel'
 import Layout from '../../components/layout/Layout'
@@ -8,35 +9,47 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import type { DailyReport, Expense, MonthlyRevenue } from '../../types'
 import { formatVND } from '../../utils/format'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 function DeleteConfirmDialog({ expense, onConfirm, onCancel }: { expense: Expense; onConfirm: () => void; onCancel: () => void }) {
   const { t } = useTranslation()
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-        <h3 className="text-base font-bold text-slate-800 mb-2">{t('revenue.expenses.deleteDialog.title')}</h3>
-        <p className="text-sm text-slate-600 mb-5">
-          {t('revenue.expenses.deleteDialog.message', {
-            amount: formatVND(expense.amount),
-            category: expense.category,
-          })}
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 border border-slate-300 text-slate-700 text-sm font-medium py-2 rounded-lg hover:bg-slate-50 transition-colors"
-          >
-            {t('common.cancel')}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
-          >
-            {t('revenue.expenses.deleteDialog.confirm')}
-          </button>
-        </div>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onCancel() }}>
+      <DialogContent className="max-w-sm" showClose={false}>
+        <DialogHeader>
+          <DialogTitle>{t('revenue.expenses.deleteDialog.title')}</DialogTitle>
+          <DialogDescription>
+            {t('revenue.expenses.deleteDialog.message', {
+              amount: formatVND(expense.amount),
+              category: expense.category,
+            })}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" size="lg" onClick={onCancel}>{t('common.cancel')}</Button>
+          <Button variant="destructive" size="lg" onClick={onConfirm}>{t('revenue.expenses.deleteDialog.confirm')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -62,8 +75,8 @@ function defaultRange(): { start: string; end: string } {
 const ROOM_TYPE_COLORS: Record<string, string> = {
   FAMILY:     'bg-purple-100 text-purple-800',
   WINDOW:     'bg-blue-100 text-blue-800',
-  BALCONY:    'bg-green-100 text-green-800',
-  REGULAR:    'bg-slate-100 text-slate-700',
+  BALCONY:    'bg-emerald-100 text-emerald-800',
+  REGULAR:    'bg-muted text-muted-foreground',
   UNASSIGNED: 'bg-orange-100 text-orange-800',
 }
 
@@ -100,6 +113,7 @@ export default function RevenuePage() {
 
   useEffect(() => {
     revenueApi.dailyReport(reportDate).then(setReport).finally(() => setReportLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadSummary = (s = startDate, e = endDate) => {
@@ -205,20 +219,21 @@ export default function RevenuePage() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-6xl print:p-4">
+      <div className="mx-auto max-w-6xl p-4 md:p-8 print:p-4">
         <div className="mb-6 print:hidden">
-          <h1 className="text-2xl font-bold text-slate-800">{t('revenue.title')}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('revenue.title')}</h1>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit print:hidden">
+        <div className="mb-6 inline-flex w-fit gap-1 rounded-lg bg-muted p-1 print:hidden">
           {visibleTabs.map((tabKey) => (
             <button
               key={tabKey}
               onClick={() => switchTab(tabKey)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                tab === tabKey ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
+              className={cn(
+                'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+                tab === tabKey ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
             >
               {tabKey === 'report' ? t('revenue.tabs.dailyReport') : tabKey === 'revenue' ? t('revenue.tabs.revenue') : t('revenue.tabs.expenses')}
             </button>
@@ -228,7 +243,7 @@ export default function RevenuePage() {
         {/* Daily Report tab */}
         {tab === 'report' && (
           reportLoading
-            ? <p className="text-slate-500 text-sm">{t('bookings.loading')}</p>
+            ? <p className="text-sm text-muted-foreground">{t('bookings.loading')}</p>
             : report && (
               <DailyReportPanel
                 report={report}
@@ -240,38 +255,20 @@ export default function RevenuePage() {
 
         {/* Date range picker */}
         {(tab === 'revenue' || tab === 'expenses') && (
-          <div className="flex items-center gap-3 mb-6 print:hidden">
+          <div className="mb-6 flex flex-wrap items-center gap-3 print:hidden">
             <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-slate-600">{t('revenue.dateRange.from')}</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <Label className="text-xs">{t('revenue.dateRange.from')}</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9 w-auto" />
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-slate-600">{t('revenue.dateRange.to')}</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <Label className="text-xs">{t('revenue.dateRange.to')}</Label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9 w-auto" />
             </div>
-            <button
-              onClick={applyRange}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
-            >
-              {t('revenue.dateRange.apply')}
-            </button>
+            <Button onClick={applyRange}>{t('revenue.dateRange.apply')}</Button>
             {tab === 'revenue' && summary && (
-              <button
-                onClick={handleDownloadCSV}
-                className="ml-2 border border-green-300 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
-              >
-                ⬇️ Tải CSV
-              </button>
+              <Button variant="outline" onClick={handleDownloadCSV} className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                <Download className="h-4 w-4" /> Tải CSV
+              </Button>
             )}
           </div>
         )}
@@ -279,39 +276,39 @@ export default function RevenuePage() {
         {/* Revenue tab */}
         {tab === 'revenue' && (
           summaryLoading
-            ? <p className="text-slate-500 text-sm">{t('bookings.loading')}</p>
+            ? <p className="text-sm text-muted-foreground">{t('bookings.loading')}</p>
             : summary && (
               <>
                 {/* Summary cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
+                <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
                   {[
-                    { label: t('revenue.summary.totalBookings'), value: String(summary.total_bookings), color: 'bg-slate-50 border-slate-200 text-slate-700' },
+                    { label: t('revenue.summary.totalBookings'), value: String(summary.total_bookings), color: 'bg-muted/50 border-border text-foreground' },
                     { label: t('revenue.occupancyRate'),          value: `${occupancyPct}%`,             color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
                     { label: t('revenue.summary.grossRevenue'),   value: formatVND(summary.total_revenue),       color: 'bg-blue-50 border-blue-200 text-blue-700' },
                     { label: t('revenue.bySource.commission'),    value: formatVND(Number(summary.total_revenue) - Number(summary.total_net_revenue)), color: 'bg-orange-50 border-orange-200 text-orange-700' },
-                    { label: t('revenue.summary.netRevenue'),     value: formatVND(summary.total_net_revenue),   color: 'bg-green-50 border-green-200 text-green-700' },
+                    { label: t('revenue.summary.netRevenue'),     value: formatVND(summary.total_net_revenue),   color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
                     { label: t('revenue.summary.collected'),      value: `${formatVND(summary.total_collected)} (${collectionRate}%)`, color: 'bg-teal-50 border-teal-200 text-teal-700' },
                     ...(Number(summary.bike_revenue) > 0 ? [
                       { label: '🏍️ Doanh thu xe máy',  value: formatVND(summary.bike_revenue),    color: 'bg-purple-50 border-purple-200 text-purple-700' },
                       { label: '🏍️ Xe máy đã thu',     value: formatVND(summary.bike_collected),  color: 'bg-violet-50 border-violet-200 text-violet-700' },
                       ...(Number(summary.bike_outstanding) > 0
                         ? [{ label: '🏍️ Xe máy còn lại', value: formatVND(summary.bike_outstanding), color: 'bg-red-50 border-red-200 text-red-700' }]
-                        : [{ label: '🏍️ Xe máy đã đủ',   value: '✓ Đủ',                             color: 'bg-green-50 border-green-200 text-green-700' }]),
+                        : [{ label: '🏍️ Xe máy đã đủ',   value: '✓ Đủ',                             color: 'bg-emerald-50 border-emerald-200 text-emerald-700' }]),
                     ] : []),
                   ].map(({ label, value, color }) => (
-                    <div key={label} className={`rounded-xl border p-4 ${color}`}>
+                    <div key={label} className={cn('rounded-xl border p-4', color)}>
                       <p className="text-lg font-bold">{value}</p>
-                      <p className="text-xs font-medium mt-1 opacity-70">{label}</p>
+                      <p className="mt-1 text-xs font-medium opacity-70">{label}</p>
                     </div>
                   ))}
                 </div>
 
                 {/* By-source table */}
                 {summary.by_source.length > 0 ? (
-                  <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto mb-6">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b border-gray-200">
-                        <tr>
+                  <div className="mb-6 overflow-hidden rounded-xl border bg-card">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
                           {[
                             t('revenue.bySource.source'),
                             t('revenue.bySource.bookings'),
@@ -321,49 +318,48 @@ export default function RevenuePage() {
                             t('revenue.bySource.collected'),
                             t('revenue.summary.outstanding'),
                           ].map((h) => (
-                            <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                            <TableHead key={h} className="whitespace-nowrap uppercase tracking-wide">{h}</TableHead>
                           ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {summary.by_source.map((row) => {
                           const commission = Number(row.revenue) * Number(row.commission_rate)
                           const outstanding = Number(row.revenue) - Number(row.collected)
                           return (
-                            <tr key={row.source} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-semibold text-slate-700">{row.source}</td>
-                              <td className="px-4 py-3 text-slate-600">{row.bookings}</td>
-                              <td className="px-4 py-3 text-slate-700">{formatVND(row.revenue)}</td>
-                              <td className="px-4 py-3 text-orange-600">
+                            <TableRow key={row.source}>
+                              <TableCell className="font-semibold text-foreground">{row.source}</TableCell>
+                              <TableCell className="text-muted-foreground">{row.bookings}</TableCell>
+                              <TableCell className="text-foreground">{formatVND(row.revenue)}</TableCell>
+                              <TableCell className="text-orange-600">
                                 {Number(row.commission_rate) > 0
                                   ? `${formatVND(commission)} (${Math.round(Number(row.commission_rate) * 100)}%)`
-                                  : '—'
-                                }
-                              </td>
-                              <td className="px-4 py-3 font-semibold text-slate-800">{formatVND(row.net_revenue)}</td>
-                              <td className="px-4 py-3 text-green-700">{formatVND(row.collected)}</td>
-                              <td className={`px-4 py-3 ${outstanding > 0 ? 'text-red-600 font-semibold' : 'text-slate-400'}`}>
+                                  : '—'}
+                              </TableCell>
+                              <TableCell className="font-semibold text-foreground">{formatVND(row.net_revenue)}</TableCell>
+                              <TableCell className="text-emerald-700">{formatVND(row.collected)}</TableCell>
+                              <TableCell className={outstanding > 0 ? 'font-semibold text-red-600' : 'text-muted-foreground'}>
                                 {outstanding > 0 ? formatVND(outstanding) : '✓'}
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           )
                         })}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
                 ) : (
-                  <p className="text-slate-400 text-sm mb-6">{t('revenue.noData')}</p>
+                  <p className="mb-6 text-sm text-muted-foreground">{t('revenue.noData')}</p>
                 )}
 
                 {/* By room type table */}
                 {summary.by_room_type.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto mb-6">
-                    <div className="px-4 py-3 border-b border-gray-200">
-                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('revenue.byRoomType.title')}</h3>
+                  <div className="mb-6 overflow-hidden rounded-xl border bg-card">
+                    <div className="border-b px-4 py-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('revenue.byRoomType.title')}</h3>
                     </div>
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b border-gray-200">
-                        <tr>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
                           {[
                             t('revenue.byRoomType.roomType'),
                             t('revenue.byRoomType.bookings'),
@@ -371,42 +367,42 @@ export default function RevenuePage() {
                             t('revenue.byRoomType.gross'),
                             t('revenue.byRoomType.net'),
                           ].map((h) => (
-                            <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                            <TableHead key={h} className="whitespace-nowrap uppercase tracking-wide">{h}</TableHead>
                           ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {summary.by_room_type.map((row) => (
-                          <tr key={row.room_type} className="hover:bg-slate-50">
-                            <td className="px-4 py-3">
-                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ROOM_TYPE_COLORS[row.room_type] ?? 'bg-gray-100 text-gray-700'}`}>
+                          <TableRow key={row.room_type}>
+                            <TableCell>
+                              <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', ROOM_TYPE_COLORS[row.room_type] ?? 'bg-muted text-muted-foreground')}>
                                 {row.room_type === 'UNASSIGNED' ? t('revenue.byRoomType.UNASSIGNED') : t(`roomType.${row.room_type}` as any)}
                               </span>
-                            </td>
-                            <td className="px-4 py-3 text-slate-600">{row.bookings}</td>
-                            <td className="px-4 py-3 text-slate-600">{row.nights}</td>
-                            <td className="px-4 py-3 text-slate-700">{formatVND(row.revenue)}</td>
-                            <td className="px-4 py-3 font-semibold text-slate-800">{formatVND(row.net_revenue)}</td>
-                          </tr>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{row.bookings}</TableCell>
+                            <TableCell className="text-muted-foreground">{row.nights}</TableCell>
+                            <TableCell className="text-foreground">{formatVND(row.revenue)}</TableCell>
+                            <TableCell className="font-semibold text-foreground">{formatVND(row.net_revenue)}</TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
 
                 {/* Payment method breakdown */}
-                <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{t('revenue.byPayment.title')}</h3>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="mb-6 rounded-xl border bg-card p-5">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('revenue.byPayment.title')}</h3>
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                     {[
-                      { label: t('revenue.byPayment.cash'),         value: summary.by_payment_method.cash,         color: 'text-green-700' },
+                      { label: t('revenue.byPayment.cash'),         value: summary.by_payment_method.cash,         color: 'text-emerald-700' },
                       { label: t('revenue.byPayment.bankTransfer'), value: summary.by_payment_method.bank_transfer, color: 'text-blue-700' },
                       { label: t('revenue.byPayment.ota'),          value: summary.by_payment_method.ota_collected, color: 'text-purple-700' },
-                      { label: t('revenue.byPayment.total'),        value: summary.by_payment_method.total,         color: 'text-slate-800' },
+                      { label: t('revenue.byPayment.total'),        value: summary.by_payment_method.total,         color: 'text-foreground' },
                     ].map(({ label, value, color }) => (
-                      <div key={label} className="border border-gray-100 rounded-lg p-3">
-                        <p className={`text-base font-bold ${color}`}>{formatVND(value)}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+                      <div key={label} className="rounded-lg border p-3">
+                        <p className={cn('text-base font-bold', color)}>{formatVND(value)}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
                       </div>
                     ))}
                   </div>
@@ -414,47 +410,44 @@ export default function RevenuePage() {
 
                 {/* Tax report — admin/owner only */}
                 {isAdminOrAbove && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-3">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                    <div className="mb-3 flex items-center justify-between">
                       <div>
                         <h3 className="text-sm font-bold text-amber-900">{t('revenue.taxReport.title')}</h3>
-                        <p className="text-xs text-amber-700 mt-0.5">{t('revenue.taxReport.note')}</p>
+                        <p className="mt-0.5 text-xs text-amber-700">{t('revenue.taxReport.note')}</p>
                       </div>
-                      <button
-                        onClick={handlePrint}
-                        className="print:hidden bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                      >
+                      <Button onClick={handlePrint} size="sm" className="bg-amber-700 text-white hover:bg-amber-800 print:hidden">
                         {t('revenue.taxReport.print')}
-                      </button>
+                      </Button>
                     </div>
-                    <div className="bg-white rounded-lg p-4 space-y-2 text-sm">
-                      <div className="flex justify-between text-slate-600">
+                    <div className="space-y-2 rounded-lg bg-card p-4 text-sm">
+                      <div className="flex justify-between text-muted-foreground">
                         <span>{t('revenue.taxReport.period')}</span>
-                        <span className="font-medium">{summary.start_date} → {summary.end_date}</span>
+                        <span className="font-medium text-foreground">{summary.start_date} → {summary.end_date}</span>
                       </div>
-                      <div className="flex justify-between text-slate-600">
+                      <div className="flex justify-between text-muted-foreground">
                         <span>{t('revenue.taxReport.occupancyRate')}</span>
-                        <span className="font-medium">{occupancyPct}%</span>
+                        <span className="font-medium text-foreground">{occupancyPct}%</span>
                       </div>
-                      <div className="flex justify-between text-slate-600">
+                      <div className="flex justify-between text-muted-foreground">
                         <span>{t('revenue.taxReport.grossRevenue')}</span>
-                        <span className="font-semibold">{formatVND(summary.total_revenue)}</span>
+                        <span className="font-semibold text-foreground">{formatVND(summary.total_revenue)}</span>
                       </div>
-                      <div className="flex justify-between text-slate-600">
+                      <div className="flex justify-between text-muted-foreground">
                         <span>{t('revenue.taxReport.otaCommission')}</span>
                         <span className="font-semibold text-orange-700">− {formatVND(Number(summary.total_revenue) - Number(summary.total_net_revenue))}</span>
                       </div>
-                      <div className="flex justify-between font-semibold text-slate-800 border-t pt-2">
+                      <div className="flex justify-between border-t pt-2 font-semibold text-foreground">
                         <span>{t('revenue.taxReport.netRevenue')}</span>
                         <span>{formatVND(summary.total_net_revenue)}</span>
                       </div>
                       {totalExpenses > 0 && (
                         <>
-                          <div className="flex justify-between text-slate-600">
+                          <div className="flex justify-between text-muted-foreground">
                             <span>{t('revenue.taxReport.totalExpenses')}</span>
                             <span className="font-semibold text-red-600">− {formatVND(totalExpenses)}</span>
                           </div>
-                          <div className={`flex justify-between font-bold border-t pt-2 ${netOperating >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                          <div className={cn('flex justify-between border-t pt-2 font-bold', netOperating >= 0 ? 'text-emerald-700' : 'text-red-600')}>
                             <span>{t('revenue.taxReport.profit')}</span>
                             <span>{formatVND(Math.abs(netOperating))}{netOperating < 0 ? ' (lỗ)' : ''}</span>
                           </div>
@@ -470,28 +463,23 @@ export default function RevenuePage() {
         {/* Expenses tab */}
         {tab === 'expenses' && (
           <>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-slate-600">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-muted-foreground">
                 {t('revenue.expenses.count', { count: expenses.length })}
                 {expenses.length > 0 && ` · ${formatVND(totalExpenses)}`}
               </h2>
-              <button
-                onClick={() => setShowExpenseForm(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
-              >
-                {t('revenue.expenses.addExpense')}
-              </button>
+              <Button onClick={() => setShowExpenseForm(true)}>{t('revenue.expenses.addExpense')}</Button>
             </div>
 
             {expensesLoading ? (
-              <p className="text-slate-500 text-sm">{t('bookings.loading')}</p>
+              <p className="text-sm text-muted-foreground">{t('bookings.loading')}</p>
             ) : expenses.length === 0 ? (
-              <p className="text-slate-400 text-sm">{t('revenue.expenses.noExpenses')}</p>
+              <p className="text-sm text-muted-foreground">{t('revenue.expenses.noExpenses')}</p>
             ) : (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto mb-6">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-gray-200">
-                    <tr>
+              <div className="mb-6 overflow-hidden rounded-xl border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
                       {[
                         t('revenue.expenses.table.date'),
                         t('revenue.expenses.table.category'),
@@ -500,62 +488,56 @@ export default function RevenuePage() {
                         t('revenue.expenses.table.recordedBy'),
                         '',
                       ].map((h, i) => (
-                        <th key={i} className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                        <TableHead key={i} className="whitespace-nowrap uppercase tracking-wide">{h}</TableHead>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {expenses.map((e) => (
-                      <tr key={e.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{e.expense_date}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                      <TableRow key={e.id}>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">{e.expense_date}</TableCell>
+                        <TableCell>
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                             {t(`expenseCategory.${e.category}` as any)}
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{e.description ?? '—'}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{formatVND(e.amount)}</td>
-                        <td className="px-4 py-3 text-slate-500">{e.recorded_by_name ?? '—'}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setEditingExpense(e)}
-                              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                            >
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{e.description ?? '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap font-semibold text-foreground">{formatVND(e.amount)}</TableCell>
+                        <TableCell className="text-muted-foreground">{e.recorded_by_name ?? '—'}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" className="text-primary hover:text-primary" onClick={() => setEditingExpense(e)}>
                               {t('common.edit')}
-                            </button>
+                            </Button>
                             {isAdminOrAbove && (
-                              <button
-                                onClick={() => setDeleteDialog(e)}
-                                className="text-xs text-red-500 hover:text-red-700 font-medium"
-                              >
+                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteDialog(e)}>
                                 {t('common.delete')}
-                              </button>
+                              </Button>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
 
             {summary && (
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{t('revenue.expenses.pl.title')}</h3>
+              <div className="rounded-xl border bg-card p-5">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('revenue.expenses.pl.title')}</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{t('revenue.expenses.pl.grossRevenue')}</span>
-                    <span className="font-semibold text-slate-800">{formatVND(netRevenue)}</span>
+                    <span className="text-muted-foreground">{t('revenue.expenses.pl.grossRevenue')}</span>
+                    <span className="font-semibold text-foreground">{formatVND(netRevenue)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{t('revenue.expenses.pl.totalExpenses')}</span>
+                    <span className="text-muted-foreground">{t('revenue.expenses.pl.totalExpenses')}</span>
                     <span className="font-semibold text-red-600">− {formatVND(totalExpenses)}</span>
                   </div>
-                  <div className="border-t pt-2 flex justify-between font-bold">
-                    <span className="text-slate-700">{t('revenue.expenses.pl.net')}</span>
-                    <span className={netOperating >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  <div className="flex justify-between border-t pt-2 font-bold">
+                    <span className="text-foreground">{t('revenue.expenses.pl.net')}</span>
+                    <span className={netOperating >= 0 ? 'text-emerald-600' : 'text-red-600'}>
                       {netOperating >= 0 ? '' : '− '}{formatVND(Math.abs(netOperating))}
                     </span>
                   </div>
