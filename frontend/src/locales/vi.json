@@ -27,7 +27,8 @@
     "settings": "Cài đặt",
     "logout": "Đăng xuất",
     "loggedInAs": "Đang đăng nhập:",
-    "bikrentals": "Xe máy"
+    "bikrentals": "Xe máy",
+    "activity": "Nhật ký"
   },
   "auth": {
     "email": "Email",

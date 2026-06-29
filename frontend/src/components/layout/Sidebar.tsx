@@ -9,6 +9,7 @@ import {
   Settings as SettingsIcon,
   LogOut,
   House,
+  ScrollText,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ const NAV = [
   { to: '/bookings', label: 'nav.bookings', icon: CalendarDays, minRole: 'RECEPTIONIST' },
   { to: '/housekeeping', label: 'nav.housekeeping', icon: Sparkles, minRole: 'RECEPTIONIST' },
   { to: '/xe-may', label: 'nav.bikrentals', icon: Bike, minRole: 'RECEPTIONIST' },
+  { to: '/hoat-dong', label: 'nav.activity', icon: ScrollText, minRole: 'RECEPTIONIST' },
   { to: '/revenue', label: 'nav.revenue', icon: Wallet, minRole: 'ADMIN' },
   { to: '/settings', label: 'nav.settings', icon: SettingsIcon, minRole: 'ADMIN' },
 ] as const

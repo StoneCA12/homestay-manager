@@ -57,6 +57,7 @@ class BookingCreate(BaseModel):
     ota_source: OTASource = OTASource.DIRECT
     total_price: Decimal = Field(ge=0)
     deposit_amount: Decimal = Field(default=Decimal("0"), ge=0)
+    deposit_payment_method: str = "CASH"
     booking_ref: str | None = None
     notes: str | None = None
 
@@ -110,6 +111,7 @@ class WalkInCreate(BaseModel):
 
 class BookingLogOut(BaseModel):
     id: int
+    booking_id: int
     action: str
     description: str
     created_by_name: str | None

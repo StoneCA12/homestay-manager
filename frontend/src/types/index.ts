@@ -32,6 +32,8 @@ export interface Room {
   guest_name: string | null
   check_out_date: string | null
   active_bike_names: string[]
+  outstanding_balance: string | null
+  active_booking_id: number | null
 }
 
 export interface DashboardStats {
@@ -105,6 +107,7 @@ export interface Payment {
 
 export interface BookingLog {
   id: number
+  booking_id: number
   action: string
   description: string
   created_by_name: string | null
@@ -269,6 +272,57 @@ export interface BikeRentalReport {
   grand_expected: string
   grand_collected: string
   grand_outstanding: string
+}
+
+export interface ActivityItem {
+  id: number
+  event_type: string  // BOOKING_CREATED | CHECKED_IN | CHECKED_OUT | CANCELLED | NO_SHOW | PAYMENT | ROOM_STATUS | BIKE_ASSIGNED | BIKE_RETURNED
+  description: string
+  booking_id: number | null
+  room_number: string | null
+  actor_name: string | null
+  created_at: string
+}
+
+// Universal search
+export interface GuestSearchResult {
+  id: number
+  full_name: string
+  phone: string | null
+  times_stayed: number
+}
+
+export interface BookingSearchResult {
+  id: number
+  booking_ref: string | null
+  guest_name: string
+  guest_phone: string | null
+  room_number: string | null
+  check_in_date: string
+  check_out_date: string
+  status: string
+}
+
+export interface RoomSearchResult {
+  id: number
+  room_number: string
+  room_type: string
+  housekeeping_status: string
+}
+
+export interface BikeSearchResult {
+  id: number
+  name: string
+  plate_number: string | null
+  status: string
+}
+
+export interface SearchResults {
+  guests: GuestSearchResult[]
+  bookings: BookingSearchResult[]
+  rooms: RoomSearchResult[]
+  bikes: BikeSearchResult[]
+  total: number
 }
 
 export interface DailyReport {

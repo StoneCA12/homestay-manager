@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.activity import log_activity
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin_or_above, require_owner
 from app.models.bike import Bike
@@ -291,6 +292,14 @@ def create_rental(
     )
     db.add(rental)
     bike.status = BikeStatus.RENTED
+    room_label = f"P.{booking.room.room_number}" if booking.room else "—"
+    log_activity(
+        db, "BIKE_ASSIGNED",
+        f"Xe {bike.name} → {room_label} ({booking.guest.full_name}) — {body.start_date} → {body.end_date}",
+        booking_id=body.booking_id,
+        room_number=booking.room.room_number if booking.room else None,
+        actor_name=current_user.full_name, user_id=current_user.id,
+    )
     db.commit()
     db.refresh(rental)
     return _to_rental_out(rental)
@@ -335,7 +344,7 @@ def update_rental(
 def return_rental(
     rental_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     rental = db.get(BikeRental, rental_id)
     if not rental:
@@ -357,6 +366,14 @@ def return_rental(
     if not other:
         rental.bike.status = BikeStatus.AVAILABLE
 
+    room_label = f"P.{rental.booking.room.room_number}" if rental.booking.room else "—"
+    log_activity(
+        db, "BIKE_RETURNED",
+        f"Xe {rental.bike.name} trả — {room_label} ({rental.booking.guest.full_name})",
+        booking_id=rental.booking_id,
+        room_number=rental.booking.room.room_number if rental.booking.room else None,
+        actor_name=current_user.full_name, user_id=current_user.id,
+    )
     db.commit()
     db.refresh(rental)
     return _to_rental_out(rental)

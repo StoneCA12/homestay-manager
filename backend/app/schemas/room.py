@@ -30,6 +30,8 @@ class RoomOut(BaseModel):
     guest_name: str | None = None
     check_out_date: date | None = None
     active_bike_names: list[str] = []
+    outstanding_balance: Decimal | None = None
+    active_booking_id: int | None = None
 
     model_config = {"from_attributes": True}
 

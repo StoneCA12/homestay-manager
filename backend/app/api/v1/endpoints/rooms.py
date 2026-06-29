@@ -104,8 +104,15 @@ def list_rooms(
         active = bookings_by_room.get(room.id, [])
         display_status, guest_name, check_out = _compute_display_status(room, active, today)
         active_bike_names: list[str] = []
+        outstanding_balance = None
+        active_booking_id = None
         if len(active) == 1:
-            active_bike_names = bikes_by_booking.get(active[0].id, [])
+            b = active[0]
+            active_booking_id = b.id
+            active_bike_names = bikes_by_booking.get(b.id, [])
+            bal = b.total_price - b.collected_amount
+            if bal > 0:
+                outstanding_balance = bal
         result.append(
             RoomOut(
                 id=room.id,
@@ -119,6 +126,8 @@ def list_rooms(
                 guest_name=guest_name,
                 check_out_date=check_out,
                 active_bike_names=active_bike_names,
+                outstanding_balance=outstanding_balance,
+                active_booking_id=active_booking_id,
             )
         )
 

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Check, MoreHorizontal, Plus, Search } from 'lucide-react'
 import BookingCalendar from '../../components/bookings/BookingCalendar'
@@ -11,6 +11,7 @@ import PaymentModal from '../../components/bookings/PaymentModal'
 import UndoToast, { type UndoAction } from '../../components/bookings/UndoToast'
 import CheckInWizard from '../../components/checkin/CheckInWizard'
 import WalkInWizard from '../../components/walkin/WalkInWizard'
+import FilterBar from '../../components/filters/FilterBar'
 import Layout from '../../components/layout/Layout'
 import { bookingsApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
@@ -56,7 +57,41 @@ function toISO(d: Date): string {
   return d.toISOString().split('T')[0]
 }
 
-const TODAY_ISO = toISO(new Date())
+const TODAY_ISO    = toISO(new Date())
+const TOMORROW_ISO = toISO(new Date(Date.now() + 86_400_000))
+const WEEK_END_ISO = toISO(new Date(Date.now() + 7 * 86_400_000))
+
+type BookingFilter =
+  | 'today' | 'tomorrow' | 'this_week'
+  | 'checked_in' | 'checked_out' | 'cancelled'
+  | 'outstanding' | 'late'
+
+const BOOKING_FILTER_OPTIONS: ReadonlyArray<{ value: BookingFilter; label: string }> = [
+  { value: 'today',       label: 'Hôm nay' },
+  { value: 'tomorrow',    label: 'Ngày mai' },
+  { value: 'this_week',   label: 'Tuần này' },
+  { value: 'checked_in',  label: 'Đang ở' },
+  { value: 'checked_out', label: 'Đã trả' },
+  { value: 'cancelled',   label: 'Đã hủy' },
+  { value: 'outstanding', label: 'Còn nợ' },
+  { value: 'late',        label: 'Đến trễ' },
+] as const
+
+function matchesBookingFilter(b: Booking, f: BookingFilter): boolean {
+  switch (f) {
+    case 'today':       return b.check_in_date === TODAY_ISO || b.check_out_date === TODAY_ISO
+    case 'tomorrow':    return b.check_in_date === TOMORROW_ISO
+    case 'this_week':   return b.check_in_date >= TODAY_ISO && b.check_in_date <= WEEK_END_ISO
+    case 'checked_in':  return b.status === 'CHECKED_IN'
+    case 'checked_out': return b.status === 'CHECKED_OUT'
+    case 'cancelled':   return b.status === 'CANCELLED'
+    case 'outstanding': {
+      const bal = Number(b.total_price) - Number(b.collected_amount)
+      return bal > 0 && b.status !== 'CANCELLED' && b.status !== 'NO_SHOW'
+    }
+    case 'late':        return b.status === 'CONFIRMED' && b.check_in_date < TODAY_ISO
+  }
+}
 
 function isOverdueUnpaid(b: {
   status: string; check_in_date: string; total_price: string; collected_amount: string
@@ -127,7 +162,50 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
-  const [tab, setTab] = useState<Tab>('today')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const [tab, setTabLocal] = useState<Tab>(() => {
+    const t = searchParams.get('tab') as Tab
+    return t && (['today', 'all', 'archived', 'calendar'] as Tab[]).includes(t) ? t : 'today'
+  })
+
+  const activeFilters = useMemo((): ReadonlySet<BookingFilter> => {
+    const raw = searchParams.get('filters') ?? ''
+    return new Set(raw.split(',').filter((v): v is BookingFilter =>
+      BOOKING_FILTER_OPTIONS.some((o) => o.value === v),
+    ))
+  }, [searchParams])
+
+  const setTab = useCallback((newTab: Tab) => {
+    setTabLocal(newTab)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (newTab === 'today') next.delete('tab')
+      else next.set('tab', newTab)
+      next.delete('filters')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  const toggleFilter = useCallback((filter: string) => {
+    setSearchParams((prev) => {
+      const cur = new Set(prev.get('filters')?.split(',').filter(Boolean) ?? [])
+      if (cur.has(filter)) cur.delete(filter)
+      else cur.add(filter)
+      const next = new URLSearchParams(prev)
+      if (cur.size === 0) next.delete('filters')
+      else next.set('filters', [...cur].join(','))
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  const clearFilters = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('filters')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<Booking | null>(null)
   const [paymentTarget, setPaymentTarget] = useState<Booking | null>(null)
@@ -175,9 +253,9 @@ export default function BookingsPage() {
     const req = view === 'today'
       ? bookingsApi.today()
       : bookingsApi.list({
-          search: view === 'all' ? (q || undefined) : undefined,
+          search: (view === 'all' || view === 'archived') ? (q || undefined) : undefined,
           archived: view === 'archived',
-          limit: PAGE_SIZE,
+          limit: view === 'all' ? 200 : PAGE_SIZE,
           offset: 0,
         })
     req
@@ -386,6 +464,27 @@ export default function BookingsPage() {
     return items
   }
 
+  const filterCounts = useMemo((): Record<BookingFilter, number> => {
+    if (tab !== 'all') return {} as Record<BookingFilter, number>
+    return Object.fromEntries(
+      BOOKING_FILTER_OPTIONS.map((opt) => [
+        opt.value,
+        bookings.filter((b) => matchesBookingFilter(b, opt.value)).length,
+      ]),
+    ) as Record<BookingFilter, number>
+  }, [bookings, tab])
+
+  const displayedBookings = useMemo(() => {
+    if (tab !== 'all' || activeFilters.size === 0) return bookings
+    return bookings.filter((b) => [...activeFilters].every((f) => matchesBookingFilter(b, f)))
+  }, [bookings, tab, activeFilters])
+
+  const bookingFilterOptions = BOOKING_FILTER_OPTIONS.map((opt) => ({
+    value: opt.value,
+    label: opt.label,
+    count: filterCounts[opt.value] ?? 0,
+  }))
+
   return (
     <Layout>
       <div className="mx-auto max-w-7xl p-4 md:p-8">
@@ -394,7 +493,10 @@ export default function BookingsPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('bookings.title')}</h1>
             {tab !== 'calendar' && (
               <p className="mt-1 text-sm text-muted-foreground">
-                {t('bookings.count', { count: bookings.length })}{tab === 'all' && hasMore ? '+' : ''}
+                {tab === 'all' && activeFilters.size > 0
+                  ? `${displayedBookings.length} / ${bookings.length} đặt phòng`
+                  : t('bookings.count', { count: bookings.length })}
+                {tab === 'archived' && hasMore ? '+' : ''}
               </p>
             )}
           </div>
@@ -409,7 +511,8 @@ export default function BookingsPage() {
           </div>
         </div>
 
-        <div className="mb-6 flex flex-wrap items-center gap-4">
+        <div className="mb-6 space-y-3">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="inline-flex w-fit gap-1 rounded-lg bg-muted p-1">
             {(['today', 'all', 'archived', 'calendar'] as Tab[]).map((tabKey) => (
               <button
@@ -446,6 +549,16 @@ export default function BookingsPage() {
           )}
         </div>
 
+        {tab === 'all' && (
+          <FilterBar
+            options={bookingFilterOptions}
+            active={activeFilters}
+            onToggle={toggleFilter}
+            onClear={clearFilters}
+          />
+        )}
+        </div>
+
         {tab === 'calendar' && (
           <BookingCalendar
             rooms={rooms}
@@ -465,6 +578,11 @@ export default function BookingsPage() {
             <p className="text-sm text-muted-foreground">{t('bookings.loading')}</p>
           ) : bookings.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('bookings.noBookings')}</p>
+          ) : displayedBookings.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Không có đặt phòng nào khớp với bộ lọc.{' '}
+              <button className="underline" onClick={clearFilters}>Xóa bộ lọc</button>
+            </p>
           ) : (
             <>
               {/* Desktop table */}
@@ -488,7 +606,7 @@ export default function BookingsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {bookings.map((b) => {
+                    {displayedBookings.map((b) => {
                       const busy = actioning === b.id
                       const outstanding = Number(b.total_price) - Number(b.collected_amount)
                       const overdueUnpaid = isOverdueUnpaid(b)
@@ -581,7 +699,7 @@ export default function BookingsPage() {
 
               {/* Mobile card list */}
               <div className="space-y-2 md:hidden">
-                {bookings.map((b) => {
+                {displayedBookings.map((b) => {
                   const busy = actioning === b.id
                   const outstanding = Number(b.total_price) - Number(b.collected_amount)
                   const overdueUnpaid = isOverdueUnpaid(b)
@@ -671,7 +789,7 @@ export default function BookingsPage() {
                 })}
               </div>
 
-              {(tab === 'all' || tab === 'archived') && hasMore && (
+              {tab === 'archived' && hasMore && (
                 <div className="mt-4 flex justify-center">
                   <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
                     {loadingMore ? t('bookings.loading') : t('bookings.loadMore')}

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.activity import log_activity
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.housekeeping import HousekeepingLog
@@ -36,8 +37,23 @@ def update_room_status(
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
+    from_status = room.housekeeping_status
     _write_housekeeping_log(db, room, body, current_user)
     room.housekeeping_status = body.to_status
+
+    _STATUS_LABELS = {
+        "AVAILABLE": "Sẵn sàng", "DIRTY": "Chưa dọn",
+        "CLEANING": "Đang dọn", "OUT_OF_ORDER": "Tạm ngừng",
+    }
+    hk_desc = (
+        f"P.{room.room_number}: "
+        f"{_STATUS_LABELS.get(str(from_status.value), str(from_status))} → "
+        f"{_STATUS_LABELS.get(body.to_status, body.to_status)}"
+    )
+    log_activity(db, "ROOM_STATUS", hk_desc,
+                 room_number=room.room_number,
+                 actor_name=current_user.full_name, user_id=current_user.id)
+
     db.commit()
 
     return {"room_id": room_id, "new_status": body.to_status}

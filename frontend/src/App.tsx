@@ -7,6 +7,7 @@ import BikeRentalsPage from './pages/BikeRentals'
 import HousekeepingPage from './pages/Housekeeping'
 import RevenuePage from './pages/Revenue'
 import SettingsPage from './pages/Settings'
+import ActivityPage from './pages/Activity'
 import LoginPage from './pages/Login'
 import type { UserRole } from './types'
 
@@ -66,6 +67,10 @@ export default function App() {
       <Route
         path="/settings"
         element={<ProtectedRoute><SettingsPage /></ProtectedRoute>}
+      />
+      <Route
+        path="/hoat-dong"
+        element={<ProtectedRoute><ActivityPage /></ProtectedRoute>}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -1,8 +1,8 @@
 import axios from 'axios'
 import type {
-  Bike, BikeRental, BikeRentalReport,
+  ActivityItem, Bike, BikeRental, BikeRentalReport,
   Booking, BookingLog, CalendarBooking, CommissionRate, DailyReport, DailyRevenue,
-  DashboardStats, Expense, GuestLookup, MonthlyRevenue, Payment, Room, User,
+  DashboardStats, Expense, GuestLookup, MonthlyRevenue, Payment, Room, SearchResults, User,
 } from '../types'
 
 const api = axios.create({
@@ -61,6 +61,7 @@ export const bookingsApi = {
     ota_source?: string
     total_price: number
     deposit_amount?: number
+    deposit_payment_method?: string
     booking_ref?: string
     notes?: string
   }) => api.post<Booking>('/bookings/', data).then((r) => r.data),
@@ -107,6 +108,8 @@ export const bookingsApi = {
     api.post<Booking>('/bookings/walk-in', data).then((r) => r.data),
   getLogs: (id: number): Promise<BookingLog[]> =>
     api.get<BookingLog[]>(`/bookings/${id}/logs`).then((r) => r.data),
+  recentActivity: (limit = 20): Promise<BookingLog[]> =>
+    api.get<BookingLog[]>('/bookings/logs/recent', { params: { limit } }).then((r) => r.data),
 }
 
 export const revenueApi = {
@@ -166,6 +169,16 @@ export const bikesApi = {
 
   report: (startDate: string, endDate: string) =>
     api.get<BikeRentalReport>('/xe-may/report', { params: { start_date: startDate, end_date: endDate } }).then((r) => r.data),
+}
+
+export const activityApi = {
+  list: (params?: { date?: string; event_type?: string; limit?: number; offset?: number }): Promise<ActivityItem[]> =>
+    api.get<ActivityItem[]>('/activity/', { params }).then((r) => r.data),
+}
+
+export const searchApi = {
+  search: (q: string): Promise<SearchResults> =>
+    api.get<SearchResults>('/search/', { params: { q } }).then((r) => r.data),
 }
 
 export const usersApi = {

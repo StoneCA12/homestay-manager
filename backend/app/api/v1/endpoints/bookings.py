@@ -26,6 +26,7 @@ from app.schemas.booking import (
     WalkInCreate,
 )
 from app.schemas.payment import PaymentCreate, PaymentOut
+from app.core.activity import log_activity
 
 router = APIRouter()
 
@@ -317,28 +318,37 @@ def create_booking(
     db.flush()
 
     room_label = f"phòng {body.room_id}" if body.room_id else "chưa xếp phòng"
-    _log(
-        db, booking.id, current_user.id, "CREATED",
+    created_desc = (
         f"Đặt phòng được tạo — {body.guest_name}, {room_label}, "
         f"{body.check_in_date} → {body.check_out_date}, "
-        f"{int(body.total_price):,} VND",
+        f"{int(body.total_price):,} VND"
     )
+    _log(db, booking.id, current_user.id, "CREATED", created_desc)
+    room_num = db.get(Room, body.room_id).room_number if body.room_id else None
+    log_activity(db, "BOOKING_CREATED", created_desc,
+                 booking_id=booking.id, room_number=room_num,
+                 actor_name=current_user.full_name, user_id=current_user.id)
 
     if body.deposit_amount > 0:
+        try:
+            dep_method = PaymentMethod(body.deposit_payment_method)
+        except ValueError:
+            dep_method = PaymentMethod.CASH
         deposit = Payment(
             booking_id=booking.id,
             amount=body.deposit_amount,
-            method=PaymentMethod.CASH,
+            method=dep_method,
             notes="Tiền đặt cọc",
             recorded_by_id=current_user.id,
         )
         db.add(deposit)
         db.flush()
         _recalculate_collected(db, booking)
-        _log(
-            db, booking.id, current_user.id, "PAYMENT",
-            f"Đặt cọc {int(body.deposit_amount):,} VND — Tiền mặt",
-        )
+        dep_desc = f"Đặt cọc {int(body.deposit_amount):,} VND — {dep_method.value}"
+        _log(db, booking.id, current_user.id, "PAYMENT", dep_desc)
+        log_activity(db, "PAYMENT", dep_desc,
+                     booking_id=booking.id, room_number=room_num,
+                     actor_name=current_user.full_name, user_id=current_user.id)
 
     db.commit()
     db.refresh(booking)
@@ -384,12 +394,15 @@ def walk_in_booking(
     db.add(booking)
     db.flush()
 
-    _log(
-        db, booking.id, current_user.id, "CREATED",
+    walkin_desc = (
         f"Walk-in — {body.guest_name}, Phòng {room.room_number}, "
         f"{body.check_in_date} → {body.check_out_date}, "
-        f"{int(body.total_price):,} VND",
+        f"{int(body.total_price):,} VND"
     )
+    _log(db, booking.id, current_user.id, "CREATED", walkin_desc)
+    log_activity(db, "BOOKING_CREATED", walkin_desc,
+                 booking_id=booking.id, room_number=room.room_number,
+                 actor_name=current_user.full_name, user_id=current_user.id)
 
     # Record payment if provided
     if body.deposit_amount > 0:
@@ -407,17 +420,19 @@ def walk_in_booking(
         db.add(payment)
         db.flush()
         _recalculate_collected(db, booking)
-        _log(
-            db, booking.id, current_user.id, "PAYMENT",
-            f"Thu {int(body.deposit_amount):,} VND — {pay_method.value}",
-        )
+        wi_pay_desc = f"Thu {int(body.deposit_amount):,} VND — {pay_method.value} ({body.guest_name})"
+        _log(db, booking.id, current_user.id, "PAYMENT", wi_pay_desc)
+        log_activity(db, "PAYMENT", wi_pay_desc,
+                     booking_id=booking.id, room_number=room.room_number,
+                     actor_name=current_user.full_name, user_id=current_user.id)
 
     # Check in: CONFIRMED → CHECKED_IN
     booking.status = BookingStatus.CHECKED_IN
-    _log(
-        db, booking.id, current_user.id, "STATUS_CHANGED",
-        f"Nhận phòng (walk-in) — CONFIRMED → CHECKED_IN — Phòng {room.room_number}",
-    )
+    checkin_desc = f"Nhận phòng (walk-in) — CONFIRMED → CHECKED_IN — Phòng {room.room_number}"
+    _log(db, booking.id, current_user.id, "STATUS_CHANGED", checkin_desc)
+    log_activity(db, "CHECKED_IN", checkin_desc,
+                 booking_id=booking.id, room_number=room.room_number,
+                 actor_name=current_user.full_name, user_id=current_user.id)
 
     db.commit()
     db.refresh(booking)
@@ -576,12 +591,22 @@ def update_booking_status(
         "cancel":    "Hủy đặt phòng",
         "no_show":   "No-show",
     }
+    _ACTION_EVENT: dict[str, str] = {
+        "confirm":   "CONFIRMED",
+        "check_in":  "CHECKED_IN",
+        "check_out": "CHECKED_OUT",
+        "cancel":    "CANCELLED",
+        "no_show":   "NO_SHOW",
+    }
     label = _TRANSITION_LABELS.get(body.action, body.action)
     reason_suffix = f" — Lý do: {body.reason}" if body.reason else ""
-    _log(
-        db, booking_id, current_user.id, "STATUS_CHANGED",
-        f"{label} — {old_status.value} → {new_status.value}{reason_suffix}",
-    )
+    status_desc = f"{label} — {old_status.value} → {new_status.value}{reason_suffix}"
+    _log(db, booking_id, current_user.id, "STATUS_CHANGED", status_desc)
+    event_type = _ACTION_EVENT.get(body.action, "STATUS_CHANGED")
+    room_num = booking.room.room_number if booking.room else None
+    log_activity(db, event_type, status_desc,
+                 booking_id=booking_id, room_number=room_num,
+                 actor_name=current_user.full_name, user_id=current_user.id)
 
     db.commit()
     db.refresh(booking)
@@ -720,12 +745,18 @@ def add_payment(
 
     _METHOD_LABELS = {"CASH": "Tiền mặt", "BANK_TRANSFER": "Chuyển khoản", "OTA_COLLECTED": "OTA"}
     method_label = _METHOD_LABELS.get(str(body.method), str(body.method))
-    if is_refund:
-        _log(db, booking_id, current_user.id, "PAYMENT",
-             f"Hoàn trả {abs(int(body.amount)):,} VND — {method_label}")
-    else:
-        _log(db, booking_id, current_user.id, "PAYMENT",
-             f"Thu {int(body.amount):,} VND — {method_label}")
+    pay_desc = (
+        f"Hoàn trả {abs(int(body.amount)):,} VND — {method_label}"
+        if is_refund else
+        f"Thu {int(body.amount):,} VND — {method_label}"
+    )
+    room_suffix = f" · P.{booking.room.room_number}" if booking.room else ""
+    guest_suffix = f" ({booking.guest.full_name})"
+    _log(db, booking_id, current_user.id, "PAYMENT", pay_desc)
+    log_activity(db, "PAYMENT", pay_desc + room_suffix + guest_suffix,
+                 booking_id=booking_id,
+                 room_number=booking.room.room_number if booking.room else None,
+                 actor_name=current_user.full_name, user_id=current_user.id)
 
     db.commit()
     db.refresh(booking)
@@ -763,6 +794,33 @@ def add_late_checkout_surcharge(
     return _to_booking_out(booking)
 
 
+@router.get("/logs/recent", response_model=list[BookingLogOut])
+def recent_activity(
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if limit > 50:
+        limit = 50
+    logs = (
+        db.query(BookingLog)
+        .order_by(BookingLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        BookingLogOut(
+            id=log.id,
+            booking_id=log.booking_id,
+            action=log.action,
+            description=log.description,
+            created_by_name=log.user.full_name if log.user else None,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ]
+
+
 @router.get("/{booking_id}/logs", response_model=list[BookingLogOut])
 def get_booking_logs(
     booking_id: int,
@@ -780,6 +838,7 @@ def get_booking_logs(
     return [
         BookingLogOut(
             id=log.id,
+            booking_id=log.booking_id,
             action=log.action,
             description=log.description,
             created_by_name=log.user.full_name if log.user else None,
