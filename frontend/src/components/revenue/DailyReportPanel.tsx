@@ -1,57 +1,63 @@
-﻿import { useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
+import { Printer } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import type { BookingSummaryRow, DailyReport } from '../../types'
 import { formatDate, formatVND } from '../../utils/format'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 const STATUS_BADGE: Record<string, string> = {
   CONFIRMED:   'bg-blue-100 text-blue-700',
-  CHECKED_IN:  'bg-green-100 text-green-700',
-  CHECKED_OUT: 'bg-gray-100 text-gray-600',
+  CHECKED_IN:  'bg-emerald-100 text-emerald-700',
+  CHECKED_OUT: 'bg-muted text-muted-foreground',
 }
 
 function GuestTable({ rows, showCheckIn }: { rows: BookingSummaryRow[]; showCheckIn?: boolean }) {
   const { t } = useTranslation()
-  if (rows.length === 0) return <p className="text-slate-400 text-sm py-2">{t('dailyReport.noArrivals')}</p>
+  if (rows.length === 0) return <p className="py-2 text-sm text-muted-foreground">{t('dailyReport.noArrivals')}</p>
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-xs text-slate-500 uppercase tracking-wide">
-          <th className="text-left py-1.5 font-semibold">{t('dailyReport.table.room')}</th>
-          <th className="text-left py-1.5 font-semibold">{t('dailyReport.table.guest')}</th>
-          {showCheckIn && <th className="text-left py-1.5 font-semibold">{t('dailyReport.table.checkIn')}</th>}
-          <th className="text-left py-1.5 font-semibold">{t('dailyReport.table.checkOut')}</th>
-          <th className="text-left py-1.5 font-semibold">{t('dailyReport.table.ota')}</th>
-          <th className="text-right py-1.5 font-semibold">{t('dailyReport.table.total')}</th>
-          <th className="text-right py-1.5 font-semibold">{t('dailyReport.table.collected')}</th>
-          <th className="text-right py-1.5 font-semibold">{t('dailyReport.table.due')}</th>
-          <th className="text-center py-1.5 font-semibold">{t('dailyReport.table.status')}</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-100">
-        {rows.map((r) => {
-          const due = Number(r.total_price) - Number(r.collected_amount)
-          return (
-            <tr key={r.id} className="hover:bg-slate-50">
-              <td className="py-2 font-semibold text-slate-800">{r.room_number ?? '&#8212;'}</td>
-              <td className="py-2 text-slate-700">{r.guest_name}</td>
-              {showCheckIn && <td className="py-2 text-slate-500">{formatDate(r.check_in_date)}</td>}
-              <td className="py-2 text-slate-500">{formatDate(r.check_out_date)}</td>
-              <td className="py-2 text-slate-500">{t(`ota.${r.ota_source}` as any)}</td>
-              <td className="py-2 text-right text-slate-700">{formatVND(r.total_price)}</td>
-              <td className="py-2 text-right text-green-700">{formatVND(r.collected_amount)}</td>
-              <td className={`py-2 text-right font-semibold ${due > 0 ? 'text-red-600' : 'text-slate-400'}`}>
-                {due > 0 ? formatVND(due) : '&#10003;'}
-              </td>
-              <td className="py-2 text-center">
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {t(`status.${r.status}` as any)}
-                </span>
-              </td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-xs uppercase tracking-wide text-muted-foreground">
+            <th className="py-1.5 text-left font-semibold">{t('dailyReport.table.room')}</th>
+            <th className="py-1.5 text-left font-semibold">{t('dailyReport.table.guest')}</th>
+            {showCheckIn && <th className="py-1.5 text-left font-semibold">{t('dailyReport.table.checkIn')}</th>}
+            <th className="py-1.5 text-left font-semibold">{t('dailyReport.table.checkOut')}</th>
+            <th className="py-1.5 text-left font-semibold">{t('dailyReport.table.ota')}</th>
+            <th className="py-1.5 text-right font-semibold">{t('dailyReport.table.total')}</th>
+            <th className="py-1.5 text-right font-semibold">{t('dailyReport.table.collected')}</th>
+            <th className="py-1.5 text-right font-semibold">{t('dailyReport.table.due')}</th>
+            <th className="py-1.5 text-center font-semibold">{t('dailyReport.table.status')}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map((r) => {
+            const due = Number(r.total_price) - Number(r.collected_amount)
+            return (
+              <tr key={r.id} className="hover:bg-muted/50">
+                <td className="py-2 font-semibold text-foreground">{r.room_number ?? '—'}</td>
+                <td className="py-2 text-foreground">{r.guest_name}</td>
+                {showCheckIn && <td className="py-2 text-muted-foreground">{formatDate(r.check_in_date)}</td>}
+                <td className="py-2 text-muted-foreground">{formatDate(r.check_out_date)}</td>
+                <td className="py-2 text-muted-foreground">{t(`ota.${r.ota_source}` as any)}</td>
+                <td className="py-2 text-right text-foreground">{formatVND(r.total_price)}</td>
+                <td className="py-2 text-right text-emerald-700">{formatVND(r.collected_amount)}</td>
+                <td className={cn('py-2 text-right font-semibold', due > 0 ? 'text-red-600' : 'text-muted-foreground')}>
+                  {due > 0 ? formatVND(due) : '✓'}
+                </td>
+                <td className="py-2 text-center">
+                  <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', STATUS_BADGE[r.status] ?? 'bg-muted text-muted-foreground')}>
+                    {t(`status.${r.status}` as any)}
+                  </span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -73,88 +79,80 @@ export default function DailyReportPanel({ report, selectedDate, onDateChange }:
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">{t('dailyReport.title')}</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{dateLabel}</p>
+          <h2 className="text-lg font-bold text-foreground">{t('dailyReport.title')}</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">{dateLabel}</p>
         </div>
         <div className="flex items-center gap-3 print:hidden">
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => onDateChange(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={() => window.print()}
-            className="border border-slate-300 bg-white rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
-          >
-            <span>&#128424;</span>
+          <Input type="date" value={selectedDate} onChange={(e) => onDateChange(e.target.value)} className="h-9 w-auto" />
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="h-4 w-4" />
             {t('dailyReport.print')}
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className={`grid gap-3 ${canSeeRevenue ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 max-w-xs'}`}>
+      <div className={cn('grid gap-3', canSeeRevenue ? 'grid-cols-2 lg:grid-cols-4' : 'max-w-xs grid-cols-1')}>
         {canSeeRevenue && (
           <>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
               <p className="text-xl font-bold text-blue-700">{formatVND(revenue.total_booked)}</p>
-              <p className="text-xs font-medium text-blue-600 mt-1">{t('dailyReport.summary.totalBooked')}</p>
+              <p className="mt-1 text-xs font-medium text-blue-600">{t('dailyReport.summary.totalBooked')}</p>
             </div>
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <p className="text-xl font-bold text-green-700">{formatVND(revenue.total_collected)}</p>
-              <p className="text-xs font-medium text-green-600 mt-1">{t('dailyReport.summary.collected')}</p>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xl font-bold text-emerald-700">{formatVND(revenue.total_collected)}</p>
+              <p className="mt-1 text-xs font-medium text-emerald-600">{t('dailyReport.summary.collected')}</p>
             </div>
-            <div className={`border rounded-xl p-4 ${Number(revenue.outstanding) > 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-              <p className={`text-xl font-bold ${Number(revenue.outstanding) > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+            <div className={cn('rounded-xl border p-4', Number(revenue.outstanding) > 0 ? 'border-red-200 bg-red-50' : 'border-border bg-muted/50')}>
+              <p className={cn('text-xl font-bold', Number(revenue.outstanding) > 0 ? 'text-red-600' : 'text-muted-foreground')}>
                 {formatVND(revenue.outstanding)}
               </p>
-              <p className={`text-xs font-medium mt-1 ${Number(revenue.outstanding) > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+              <p className={cn('mt-1 text-xs font-medium', Number(revenue.outstanding) > 0 ? 'text-red-500' : 'text-muted-foreground')}>
                 {t('dailyReport.summary.outstanding')}
               </p>
             </div>
           </>
         )}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <div className="flex gap-3 text-sm flex-wrap">
-            {housekeeping.dirty > 0 && <span className="text-red-600 font-bold">{t('dailyReport.hk.dirty', { count: housekeeping.dirty })}</span>}
-            {housekeeping.cleaning > 0 && <span className="text-orange-600 font-bold">{t('dailyReport.hk.cleaning', { count: housekeeping.cleaning })}</span>}
-            {housekeeping.out_of_order > 0 && <span className="text-gray-500 font-bold">{t('dailyReport.hk.ooo', { count: housekeeping.out_of_order })}</span>}
-            {housekeeping.available > 0 && <span className="text-green-600 font-bold">{t('dailyReport.hk.ready', { count: housekeeping.available })}</span>}
+        <div className="rounded-xl border border-border bg-muted/50 p-4">
+          <div className="flex flex-wrap gap-3 text-sm">
+            {housekeeping.dirty > 0 && <span className="font-bold text-red-600">{t('dailyReport.hk.dirty', { count: housekeeping.dirty })}</span>}
+            {housekeeping.cleaning > 0 && <span className="font-bold text-orange-600">{t('dailyReport.hk.cleaning', { count: housekeeping.cleaning })}</span>}
+            {housekeeping.out_of_order > 0 && <span className="font-bold text-muted-foreground">{t('dailyReport.hk.ooo', { count: housekeeping.out_of_order })}</span>}
+            {housekeeping.available > 0 && <span className="font-bold text-emerald-600">{t('dailyReport.hk.ready', { count: housekeeping.available })}</span>}
           </div>
-          <p className="text-xs font-medium text-slate-500 mt-1">{t('dailyReport.summary.housekeeping')}</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">{t('dailyReport.summary.housekeeping')}</p>
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <h3 className="text-sm font-bold text-slate-700 mb-3">
+      <div className="rounded-xl border bg-card p-5">
+        <h3 className="mb-3 text-sm font-bold text-foreground">
           {t('dailyReport.arrivals')}
-          <span className="ml-2 text-xs font-medium bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{report.arrivals.length}</span>
+          <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{report.arrivals.length}</span>
         </h3>
         <GuestTable rows={report.arrivals} />
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <h3 className="text-sm font-bold text-slate-700 mb-3">
+      <div className="rounded-xl border bg-card p-5">
+        <h3 className="mb-3 text-sm font-bold text-foreground">
           {t('dailyReport.departures')}
-          <span className="ml-2 text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{report.departures.length}</span>
+          <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{report.departures.length}</span>
         </h3>
         <GuestTable rows={report.departures} />
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <h3 className="text-sm font-bold text-slate-700 mb-3">
+      <div className="rounded-xl border bg-card p-5">
+        <h3 className="mb-3 text-sm font-bold text-foreground">
           {t('dailyReport.inHouse')}
-          <span className="ml-2 text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{report.in_house.length}</span>
+          <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">{report.in_house.length}</span>
         </h3>
         <GuestTable rows={report.in_house} showCheckIn />
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <h3 className="text-sm font-bold text-slate-700 mb-3">
+      <div className="rounded-xl border bg-card p-5">
+        <h3 className="mb-3 text-sm font-bold text-foreground">
           {t('dailyReport.tomorrowArrivals')}
-          <span className="ml-2 text-xs font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{report.tomorrow_arrivals.length}</span>
+          <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{report.tomorrow_arrivals.length}</span>
         </h3>
         <GuestTable rows={report.tomorrow_arrivals} />
       </div>

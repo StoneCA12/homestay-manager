@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarBooking, Room } from '../../types'
 import { formatDate } from '../../utils/format'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -89,7 +92,7 @@ function buildOccupancyMap(bookings: CalendarBooking[]): Map<string, number> {
 }
 
 function occupancyColor(count: number, totalRooms: number): string {
-  if (count === 0) return 'bg-slate-100 text-slate-400'
+  if (count === 0) return 'bg-muted text-muted-foreground'
   const pct = totalRooms > 0 ? count / totalRooms : 0
   if (pct >= 0.75) return 'bg-red-200 text-red-700'
   if (pct >= 0.5)  return 'bg-orange-200 text-orange-700'
@@ -107,8 +110,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_BADGE: Record<string, string> = {
   CONFIRMED:   'bg-blue-100 text-blue-700',
-  CHECKED_IN:  'bg-green-100 text-green-700',
-  CHECKED_OUT: 'bg-gray-100 text-gray-600',
+  CHECKED_IN:  'bg-emerald-100 text-emerald-700',
+  CHECKED_OUT: 'bg-muted text-muted-foreground',
 }
 
 function DayDetailPanel({
@@ -125,55 +128,52 @@ function DayDetailPanel({
     dotColor: string; labelColor: string
   }> = [
     { kind: 'arrival',  label: 'Nhận phòng',  bookings: data.arrivals,   dotColor: 'bg-blue-500',  labelColor: 'text-blue-700'  },
-    { kind: 'inhouse',  label: 'Đang ở',       bookings: data.inHouse,    dotColor: 'bg-green-500', labelColor: 'text-green-700' },
-    { kind: 'departure',label: 'Trả phòng',   bookings: data.departures, dotColor: 'bg-slate-400', labelColor: 'text-slate-600' },
+    { kind: 'inhouse',  label: 'Đang ở',       bookings: data.inHouse,    dotColor: 'bg-emerald-500', labelColor: 'text-emerald-700' },
+    { kind: 'departure',label: 'Trả phòng',   bookings: data.departures, dotColor: 'bg-slate-400', labelColor: 'text-muted-foreground' },
   ]
 
   return (
-    <div className="w-72 flex-shrink-0 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col self-start sticky top-4">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-slate-50">
+    <div className="sticky top-4 flex w-72 flex-shrink-0 flex-col self-start overflow-hidden rounded-xl border bg-card">
+      <div className="flex items-center justify-between border-b bg-muted/50 px-4 py-3">
         <div>
-          <p className="text-sm font-bold text-slate-800 capitalize">{formatDateVi(date)}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{total > 0 ? `${total} đặt phòng` : 'Không có đặt phòng'}</p>
+          <p className="text-sm font-bold capitalize text-foreground">{formatDateVi(date)}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{total > 0 ? `${total} đặt phòng` : 'Không có đặt phòng'}</p>
         </div>
-        <button
-          onClick={onClose}
-          className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-full text-lg transition-colors"
-        >
+        <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-full text-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
           ×
         </button>
       </div>
 
       {total === 0 ? (
         <div className="px-4 py-10 text-center">
-          <p className="text-3xl mb-2">🏨</p>
-          <p className="text-sm text-slate-400">Không có khách hôm nay</p>
+          <p className="mb-2 text-3xl">🏨</p>
+          <p className="text-sm text-muted-foreground">Không có khách hôm nay</p>
         </div>
       ) : (
-        <div className="overflow-y-auto max-h-[600px] divide-y divide-gray-100">
+        <div className="max-h-[600px] divide-y divide-border overflow-y-auto">
           {sections.map(({ kind, label, bookings, dotColor, labelColor }) =>
             bookings.length === 0 ? null : (
               <div key={kind} className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
-                  <span className={`text-xs font-bold uppercase tracking-wide ${labelColor}`}>
+                <div className="mb-3 flex items-center gap-2">
+                  <span className={cn('h-2 w-2 flex-shrink-0 rounded-full', dotColor)} />
+                  <span className={cn('text-xs font-bold uppercase tracking-wide', labelColor)}>
                     {label} &nbsp;
-                    <span className="font-normal text-slate-500">({bookings.length})</span>
+                    <span className="font-normal text-muted-foreground">({bookings.length})</span>
                   </span>
                 </div>
                 <div className="space-y-2">
                   {bookings.map((b) => (
-                    <div key={b.id} className="rounded-lg border border-gray-100 bg-slate-50 px-3 py-2.5">
-                      <div className="flex items-start justify-between gap-1 mb-1">
-                        <span className="text-xs font-bold text-slate-700">
+                    <div key={b.id} className="rounded-lg border bg-muted/40 px-3 py-2.5">
+                      <div className="mb-1 flex items-start justify-between gap-1">
+                        <span className="text-xs font-bold text-foreground">
                           {b.room_number ? `Phòng ${b.room_number}` : 'Chưa xếp phòng'}
                         </span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${STATUS_BADGE[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                        <span className={cn('whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-semibold', STATUS_BADGE[b.status] ?? 'bg-muted text-muted-foreground')}>
                           {STATUS_LABEL[b.status] ?? b.status}
                         </span>
                       </div>
-                      <p className="text-sm font-medium text-slate-800 leading-tight">{b.guest_name}</p>
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-sm font-medium leading-tight text-foreground">{b.guest_name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {formatDate(b.check_in_date)} → {formatDate(b.check_out_date)}
                       </p>
                     </div>
@@ -234,53 +234,41 @@ export default function BookingCalendar({
   const toggleDate = (iso: string) => setSelectedDate((prev) => (prev === iso ? null : iso))
   const selectedDayData = selectedDate ? gridData.get(selectedDate) ?? { arrivals: [], departures: [], inHouse: [] } : null
 
-  // ── View toggle ──────────────────────────────────────────────────────────────
   const VIEW_TABS: { key: ViewMode; label: string }[] = [
     { key: 'grid',  label: t('calendar.viewGrid') },
     { key: 'gantt', label: t('calendar.viewGantt') },
     { key: 'year',  label: t('calendar.viewYear') },
   ]
 
-  // ── Month navigator ──────────────────────────────────────────────────────────
   const MonthNav = () => (
-    <div className="flex items-center gap-3 mb-4">
-      <button
-        onClick={onPrevMonth}
-        className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 transition-colors"
-      >‹</button>
-      <span className="text-base font-bold text-slate-800 min-w-[180px] text-center capitalize">
+    <div className="mb-4 flex items-center gap-3">
+      <Button variant="outline" size="icon" onClick={onPrevMonth}><ChevronLeft className="h-4 w-4" /></Button>
+      <span className="min-w-[180px] text-center text-base font-bold capitalize text-foreground">
         {monthLabel}
       </span>
-      <button
-        onClick={onNextMonth}
-        className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 transition-colors"
-      >›</button>
+      <Button variant="outline" size="icon" onClick={onNextMonth}><ChevronRight className="h-4 w-4" /></Button>
     </div>
   )
 
   // ── Grid view ────────────────────────────────────────────────────────────────
   const renderGrid = () => (
-    <div className="flex gap-4 items-start">
-      {/* Calendar */}
-      <div className="flex-1 min-w-0">
+    <div className="flex items-start gap-4">
+      <div className="min-w-0 flex-1">
         <MonthNav />
 
         {/* Day-of-week header */}
-        <div className="grid grid-cols-7 mb-1">
+        <div className="mb-1 grid grid-cols-7">
           {DAY_NAMES_SHORT.map((d, i) => (
-            <div
-              key={d}
-              className={`text-center text-xs font-bold py-1.5 ${i === 0 || i === 6 ? 'text-red-400' : 'text-slate-400'}`}
-            >
+            <div key={d} className={cn('py-1.5 text-center text-xs font-bold', i === 0 || i === 6 ? 'text-red-400' : 'text-muted-foreground')}>
               {d}
             </div>
           ))}
         </div>
 
         {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-xl overflow-hidden border border-gray-200">
+        <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border bg-border">
           {Array.from({ length: firstDow }).map((_, i) => (
-            <div key={`empty-${i}`} className="bg-slate-50 min-h-[80px]" />
+            <div key={`empty-${i}`} className="min-h-[80px] bg-muted/40" />
           ))}
 
           {days.map((d) => {
@@ -297,46 +285,37 @@ export default function BookingCalendar({
               <div
                 key={iso}
                 onClick={() => toggleDate(iso)}
-                className={`min-h-[80px] p-2 flex flex-col cursor-pointer transition-colors select-none ${
+                className={cn(
+                  'flex min-h-[80px] cursor-pointer select-none flex-col p-2 transition-colors',
                   isSelected
                     ? 'bg-blue-50 ring-2 ring-inset ring-blue-400'
                     : isToday
-                      ? 'bg-white ring-2 ring-inset ring-blue-300'
-                      : 'bg-white hover:bg-slate-50'
-                }`}
+                      ? 'bg-card ring-2 ring-inset ring-blue-300'
+                      : 'bg-card hover:bg-muted/50'
+                )}
               >
-                {/* Date number */}
-                <div className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1 ${
-                  isToday ? 'bg-blue-500 text-white' : 'text-slate-600'
-                }`}>
+                <div className={cn('mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold', isToday ? 'bg-blue-500 text-white' : 'text-muted-foreground')}>
                   {d.getDate()}
                 </div>
 
-                {/* Activity indicators */}
                 {hasActivity && (
-                  <div className="flex flex-col gap-0.5 mt-auto">
+                  <div className="mt-auto flex flex-col gap-0.5">
                     {arrivals.length > 0 && (
                       <div className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
-                        <span className="text-[10px] font-semibold text-blue-700">
-                          {arrivals.length} nhận
-                        </span>
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />
+                        <span className="text-[10px] font-semibold text-blue-700">{arrivals.length} nhận</span>
                       </div>
                     )}
                     {inHouse.length > 0 && (
                       <div className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-                        <span className="text-[10px] text-green-700">
-                          {inHouse.length} đang ở
-                        </span>
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-500" />
+                        <span className="text-[10px] text-emerald-700">{inHouse.length} đang ở</span>
                       </div>
                     )}
                     {departures.length > 0 && (
                       <div className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0" />
-                        <span className="text-[10px] text-slate-600">
-                          {departures.length} trả
-                        </span>
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" />
+                        <span className="text-[10px] text-muted-foreground">{departures.length} trả</span>
                       </div>
                     )}
                   </div>
@@ -347,29 +326,18 @@ export default function BookingCalendar({
         </div>
 
         {/* Legend */}
-        <div className="flex gap-4 mt-3 text-xs text-slate-400 flex-wrap">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-500" /> Nhận phòng
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-green-500" /> Đang ở
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-slate-400" /> Trả phòng
-          </span>
-          <span className="text-slate-300 ml-1">Nhấn vào ngày để xem chi tiết</span>
+        <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Nhận phòng</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Đang ở</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-slate-400" /> Trả phòng</span>
+          <span className="ml-1 text-muted-foreground/60">Nhấn vào ngày để xem chi tiết</span>
         </div>
 
         {inactiveBookings.length > 0 && <CancelledSection bookings={inactiveBookings} />}
       </div>
 
-      {/* Day detail panel */}
       {selectedDate && selectedDayData && (
-        <DayDetailPanel
-          date={selectedDate}
-          data={selectedDayData}
-          onClose={() => setSelectedDate(null)}
-        />
+        <DayDetailPanel date={selectedDate} data={selectedDayData} onClose={() => setSelectedDate(null)} />
       )}
     </div>
   )
@@ -378,21 +346,18 @@ export default function BookingCalendar({
   const renderGantt = () => {
     const STATUS_COLOR: Record<string, string> = {
       CONFIRMED:   'bg-blue-300 text-blue-900',
-      CHECKED_IN:  'bg-green-300 text-green-900',
-      CHECKED_OUT: 'bg-gray-200 text-gray-600',
+      CHECKED_IN:  'bg-emerald-300 text-emerald-900',
+      CHECKED_OUT: 'bg-muted text-muted-foreground',
     }
     return (
-      <div className="flex gap-4 items-start">
-        <div className="flex-1 min-w-0">
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
           <MonthNav />
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table
-              className="text-xs border-collapse"
-              style={{ minWidth: `${64 + daysInMonth * 36}px` }}
-            >
+          <div className="overflow-x-auto rounded-xl border bg-card">
+            <table className="border-collapse text-xs" style={{ minWidth: `${64 + daysInMonth * 36}px` }}>
               <thead>
-                <tr className="bg-slate-50">
-                  <th className="sticky left-0 z-10 bg-slate-50 w-16 px-2 py-2 text-left text-slate-500 font-semibold border-b border-r border-gray-200">
+                <tr className="bg-muted/50">
+                  <th className="sticky left-0 z-10 w-16 border-b border-r bg-muted/50 px-2 py-2 text-left font-semibold text-muted-foreground">
                     Phòng
                   </th>
                   {days.map((d) => {
@@ -405,15 +370,16 @@ export default function BookingCalendar({
                         key={iso}
                         onClick={() => toggleDate(iso)}
                         title={formatDateVi(iso)}
-                        className={`w-9 px-0 py-1 text-center font-medium border-b border-r border-gray-200 cursor-pointer transition-colors ${
+                        className={cn(
+                          'w-9 cursor-pointer border-b border-r px-0 py-1 text-center font-medium transition-colors',
                           isSelected
                             ? 'bg-blue-100 text-blue-700'
                             : isToday
                               ? 'bg-blue-50 text-blue-600'
                               : isWeekend
-                                ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                : 'text-slate-400 hover:bg-slate-50'
-                        }`}
+                                ? 'bg-muted text-muted-foreground hover:bg-muted'
+                                : 'text-muted-foreground hover:bg-muted/50'
+                        )}
                       >
                         <div>{d.getDate()}</div>
                         <div className="text-[10px] opacity-60">{DAY_NAMES_SHORT[d.getDay()]}</div>
@@ -424,8 +390,8 @@ export default function BookingCalendar({
               </thead>
               <tbody>
                 {rooms.map((room) => (
-                  <tr key={room.id} className="hover:bg-slate-50/50">
-                    <td className="sticky left-0 z-10 bg-white px-2 py-2 font-semibold text-slate-700 border-b border-r border-gray-200 whitespace-nowrap">
+                  <tr key={room.id} className="hover:bg-muted/30">
+                    <td className="sticky left-0 z-10 whitespace-nowrap border-b border-r bg-card px-2 py-2 font-semibold text-foreground">
                       {room.room_number}
                     </td>
                     {days.map((d) => {
@@ -439,15 +405,16 @@ export default function BookingCalendar({
                           key={iso}
                           onClick={() => toggleDate(iso)}
                           title={booking ? `${booking.guest_name} · ${booking.check_in_date} → ${booking.check_out_date}` : formatDateVi(iso)}
-                          className={`w-9 h-8 px-0 border-b border-r border-gray-200 overflow-hidden cursor-pointer transition-colors ${
+                          className={cn(
+                            'h-8 w-9 cursor-pointer overflow-hidden border-b border-r px-0 transition-colors',
                             booking
-                              ? STATUS_COLOR[booking.status] ?? 'bg-gray-200'
+                              ? STATUS_COLOR[booking.status] ?? 'bg-muted'
                               : isSelected
                                 ? 'bg-blue-50'
                                 : isToday
                                   ? 'bg-blue-50/50'
-                                  : 'hover:bg-slate-50'
-                          }`}
+                                  : 'hover:bg-muted/50'
+                          )}
                         >
                           {isCheckIn && booking && (
                             <span className="block truncate px-1 text-[10px] font-semibold leading-8">
@@ -462,28 +429,24 @@ export default function BookingCalendar({
               </tbody>
             </table>
           </div>
-          <div className="flex gap-4 mt-3 text-xs text-slate-400">
+          <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
             {[
-              ['bg-blue-300',  'Đã đặt'],
-              ['bg-green-300', 'Đang ở'],
-              ['bg-gray-200',  'Đã trả'],
+              ['bg-blue-300',     'Đã đặt'],
+              ['bg-emerald-300',  'Đang ở'],
+              ['bg-muted',        'Đã trả'],
             ].map(([color, label]) => (
               <span key={label} className="flex items-center gap-1.5">
-                <span className={`w-3 h-3 rounded-sm ${color}`} />
+                <span className={cn('h-3 w-3 rounded-sm', color)} />
                 {label}
               </span>
             ))}
-            <span className="text-slate-300 ml-1">Nhấn cột ngày để xem chi tiết</span>
+            <span className="ml-1 text-muted-foreground/60">Nhấn cột ngày để xem chi tiết</span>
           </div>
           {inactiveBookings.length > 0 && <CancelledSection bookings={inactiveBookings} />}
         </div>
 
         {selectedDate && selectedDayData && (
-          <DayDetailPanel
-            date={selectedDate}
-            data={selectedDayData}
-            onClose={() => setSelectedDate(null)}
-          />
+          <DayDetailPanel date={selectedDate} data={selectedDayData} onClose={() => setSelectedDate(null)} />
         )}
       </div>
     )
@@ -492,36 +455,30 @@ export default function BookingCalendar({
   // ── Year view ─────────────────────────────────────────────────────────────────
   const renderYear = () => (
     <div>
-      <div className="flex items-center gap-3 mb-6">
+      <div className="mb-6 flex items-center gap-3">
         {onPrevYear && (
-          <button
-            onClick={onPrevYear}
-            className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 transition-colors"
-          >‹</button>
+          <Button variant="outline" size="icon" onClick={onPrevYear}><ChevronLeft className="h-4 w-4" /></Button>
         )}
-        <span className="text-base font-bold text-slate-800 min-w-[200px] text-center">
+        <span className="min-w-[200px] text-center text-base font-bold text-foreground">
           {t('calendar.yearTitle', { year: displayYear })}
         </span>
         {onNextYear && (
-          <button
-            onClick={onNextYear}
-            className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 transition-colors"
-          >›</button>
+          <Button variant="outline" size="icon" onClick={onNextYear}><ChevronRight className="h-4 w-4" /></Button>
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
         {Array.from({ length: 12 }, (_, m) => {
           const mStart = new Date(displayYear, m, 1)
           const mDays = new Date(displayYear, m + 1, 0).getDate()
           const mLabel = mStart.toLocaleDateString('vi-VN', { month: 'long' })
           const mFirstDow = mStart.getDay()
           return (
-            <div key={m} className="bg-white border border-gray-200 rounded-xl p-3">
-              <p className="text-xs font-bold text-slate-700 mb-2 capitalize">{mLabel}</p>
+            <div key={m} className="rounded-xl border bg-card p-3">
+              <p className="mb-2 text-xs font-bold capitalize text-foreground">{mLabel}</p>
               <div className="grid grid-cols-7 gap-px">
                 {DAY_NAMES_SHORT.map((d) => (
-                  <div key={d} className="text-center text-[9px] text-slate-400 font-medium pb-0.5">{d}</div>
+                  <div key={d} className="pb-0.5 text-center text-[9px] font-medium text-muted-foreground">{d}</div>
                 ))}
                 {Array.from({ length: mFirstDow }).map((_, i) => <div key={`e${i}`} />)}
                 {Array.from({ length: mDays }, (_, i) => {
@@ -532,7 +489,7 @@ export default function BookingCalendar({
                     <div
                       key={iso}
                       title={count > 0 ? `${count} đặt phòng` : undefined}
-                      className={`w-full aspect-square rounded-sm text-[9px] flex items-center justify-center font-medium transition-colors ${occupancyColor(count, totalRooms)} ${isToday ? 'ring-1 ring-blue-500' : ''}`}
+                      className={cn('flex aspect-square w-full items-center justify-center rounded-sm text-[9px] font-medium transition-colors', occupancyColor(count, totalRooms), isToday && 'ring-1 ring-blue-500')}
                     >
                       {i + 1}
                     </div>
@@ -544,16 +501,16 @@ export default function BookingCalendar({
         })}
       </div>
 
-      <div className="flex gap-4 mt-4 text-xs text-slate-400 flex-wrap">
+      <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
         {[
-          { color: 'bg-slate-100',   label: 'Trống'  },
-          { color: 'bg-blue-100',    label: '1–25%'  },
-          { color: 'bg-blue-200',    label: '25–50%' },
-          { color: 'bg-orange-200',  label: '50–75%' },
-          { color: 'bg-red-200',     label: '≥75%'   },
+          { color: 'bg-muted',      label: 'Trống'  },
+          { color: 'bg-blue-100',   label: '1–25%'  },
+          { color: 'bg-blue-200',   label: '25–50%' },
+          { color: 'bg-orange-200', label: '50–75%' },
+          { color: 'bg-red-200',    label: '≥75%'   },
         ].map(({ color, label }) => (
           <span key={label} className="flex items-center gap-1.5">
-            <span className={`w-3 h-3 rounded-sm ${color}`} />
+            <span className={cn('h-3 w-3 rounded-sm', color)} />
             {label}
           </span>
         ))}
@@ -564,16 +521,15 @@ export default function BookingCalendar({
   return (
     <div>
       {/* View toggle */}
-      <div className="flex gap-1 mb-5 bg-slate-100 rounded-lg p-1 w-fit">
+      <div className="mb-5 inline-flex w-fit gap-1 rounded-lg bg-muted p-1">
         {VIEW_TABS.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => { setView(key); setSelectedDate(null) }}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              view === key
-                ? 'bg-white text-slate-800 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
+            className={cn(
+              'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+              view === key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            )}
           >
             {label}
           </button>
@@ -592,42 +548,38 @@ export default function BookingCalendar({
 function CancelledSection({ bookings }: { bookings: CalendarBooking[] }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="mt-5 border border-gray-200 rounded-xl bg-white overflow-hidden">
+    <div className="mt-5 overflow-hidden rounded-xl border bg-card">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+        className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted/50"
       >
         <span>
           Đã hủy & Không đến
-          <span className="ml-2 text-xs font-medium bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+          <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             {bookings.length}
           </span>
         </span>
-        <span className="text-slate-400 text-xs">{open ? '▲' : '▼'}</span>
+        <span className="text-xs text-muted-foreground">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
-        <div className="border-t border-gray-200 overflow-x-auto">
+        <div className="overflow-x-auto border-t">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-muted/50">
               <tr>
                 {['Phòng', 'Khách', 'Nhận phòng', 'Trả phòng', 'Trạng thái'].map((h) => (
-                  <th key={h} className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  <th key={h} className="whitespace-nowrap px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {bookings.map((b) => (
-                <tr key={b.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 font-semibold text-slate-700">{b.room_number ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-slate-600">{b.guest_name}</td>
-                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(b.check_in_date)}</td>
-                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(b.check_out_date)}</td>
+                <tr key={b.id} className="hover:bg-muted/50">
+                  <td className="px-4 py-2.5 font-semibold text-foreground">{b.room_number ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{b.guest_name}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">{formatDate(b.check_in_date)}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">{formatDate(b.check_out_date)}</td>
                   <td className="px-4 py-2.5">
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      b.status === 'CANCELLED'
-                        ? 'bg-red-100 text-red-600'
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}>
+                    <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', b.status === 'CANCELLED' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
                       {b.status === 'CANCELLED' ? 'Đã hủy' : 'Không đến'}
                     </span>
                   </td>

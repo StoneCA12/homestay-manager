@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Layout from '../../components/layout/Layout'
 import AddUserModal from '../../components/settings/AddUserModal'
@@ -7,11 +7,31 @@ import { useToast } from '../../contexts/ToastContext'
 import { authApi, roomsApi, settingsApi, usersApi } from '../../services/api'
 import type { CommissionRate, Room, RoomType, User, UserRole } from '../../types'
 import { formatVND } from '../../utils/format'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 const ROLE_BADGE: Record<UserRole, string> = {
   OWNER:        'bg-purple-100 text-purple-700',
   ADMIN:        'bg-blue-100 text-blue-700',
-  RECEPTIONIST: 'bg-gray-100 text-gray-600',
+  RECEPTIONIST: 'bg-muted text-muted-foreground',
 }
 
 const OTA_LABEL: Record<string, string> = {
@@ -24,6 +44,9 @@ const OTA_LABEL: Record<string, string> = {
 
 const ROOM_TYPES: RoomType[] = ['FAMILY', 'WINDOW', 'BALCONY', 'REGULAR']
 const HK_STATUSES = ['AVAILABLE', 'DIRTY', 'CLEANING', 'OUT_OF_ORDER']
+
+const SELECT_CLASS =
+  'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
 
 interface RoomForm {
   room_number: string
@@ -209,35 +232,28 @@ export default function SettingsPage() {
     }
   }
 
-  const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-  const labelCls = 'block text-xs font-semibold text-slate-600 mb-1'
-
   return (
     <Layout>
-      <div className="p-8 max-w-4xl space-y-10">
+      <div className="mx-auto max-w-4xl space-y-10 p-4 md:p-8">
+        {/* Users */}
         <div>
-          <div className="flex items-center justify-between mb-6">
+          <div className="mb-6 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">{t('settings.title')}</h1>
-              <p className="text-sm text-slate-500 mt-1">{t('settings.users.title')}</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('settings.title')}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">{t('settings.users.title')}</p>
             </div>
             {isOwner && (
-              <button
-                onClick={() => setShowForm(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-              >
-                {t('settings.users.newUser')}
-              </button>
+              <Button onClick={() => setShowForm(true)}>{t('settings.users.newUser')}</Button>
             )}
           </div>
 
           {loading ? (
-            <p className="text-slate-500 text-sm">{t('bookings.loading')}</p>
+            <p className="text-sm text-muted-foreground">{t('bookings.loading')}</p>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-gray-200">
-                  <tr>
+            <div className="overflow-hidden rounded-xl border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
                     {[
                       t('settings.users.table.name'),
                       t('settings.users.table.email'),
@@ -245,84 +261,72 @@ export default function SettingsPage() {
                       t('settings.users.table.status'),
                       ...(isOwner ? [t('settings.users.table.actions')] : []),
                     ].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">{h}</th>
+                      <TableHead key={h} className="uppercase tracking-wide">{h}</TableHead>
                     ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {users.map((u) => (
-                    <tr key={u.id} className={`hover:bg-slate-50 transition-colors ${!u.is_active ? 'opacity-50' : ''}`}>
-                      <td className="px-4 py-3 font-medium text-slate-800">
+                    <TableRow key={u.id} className={cn(!u.is_active && 'opacity-50')}>
+                      <TableCell className="font-medium text-foreground">
                         {u.full_name}
-                        {u.id === me?.id && <span className="ml-2 text-xs text-slate-400">(bạn)</span>}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{u.email}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${ROLE_BADGE[u.role]}`}>
+                        {u.id === me?.id && <span className="ml-2 text-xs text-muted-foreground">(bạn)</span>}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                      <TableCell>
+                        <span className={cn('rounded-full px-2 py-1 text-xs font-semibold', ROLE_BADGE[u.role])}>
                           {t(`role.${u.role}` as any)}
                         </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      </TableCell>
+                      <TableCell>
+                        <span className={cn('rounded-full px-2 py-1 text-xs font-semibold', u.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-muted-foreground')}>
                           {u.is_active ? t('settings.users.active') : t('settings.users.inactive')}
                         </span>
-                      </td>
+                      </TableCell>
                       {isOwner && (
-                        <td className="px-4 py-3">
+                        <TableCell>
                           {u.id !== me?.id && (
                             <div className="flex flex-wrap gap-2">
-                              <button
+                              <Button
+                                size="xs"
+                                variant="ghost"
                                 disabled={toggling === u.id}
                                 onClick={() => handleToggle(u)}
-                                className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 ${
-                                  u.is_active
-                                    ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                                    : 'bg-green-50 text-green-600 hover:bg-green-100'
-                                }`}
+                                className={u.is_active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}
                               >
                                 {toggling === u.id ? '...' : u.is_active ? t('settings.users.deactivate') : t('settings.users.reactivate')}
-                              </button>
-                              <button
-                                onClick={() => { setResetPasswordUser(u); setResetPwInput(''); setResetPwConfirm(''); setResetPwError('') }}
-                                className="text-xs font-medium px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                              >
+                              </Button>
+                              <Button size="xs" variant="ghost" className="text-primary hover:bg-blue-50" onClick={() => { setResetPasswordUser(u); setResetPwInput(''); setResetPwConfirm(''); setResetPwError('') }}>
                                 {t('settings.users.resetPassword')}
-                              </button>
+                              </Button>
                               {u.role !== 'OWNER' && (
-                                <button
-                                  onClick={() => setDeleteUserDialog(u)}
-                                  className="text-xs font-medium px-2.5 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                                >
+                                <Button size="xs" variant="ghost" className="text-destructive hover:bg-red-50" onClick={() => setDeleteUserDialog(u)}>
                                   {t('common.delete')}
-                                </button>
+                                </Button>
                               )}
                             </div>
                           )}
-                        </td>
+                        </TableCell>
                       )}
-                    </tr>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>
 
+        {/* Rooms */}
         {isOwnerOrAdmin && (
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-slate-800">{t('settings.rooms.title')}</h2>
-              <button
-                onClick={openAddRoom}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-              >
-                {t('settings.rooms.addRoom')}
-              </button>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-foreground">{t('settings.rooms.title')}</h2>
+              <Button onClick={openAddRoom}>{t('settings.rooms.addRoom')}</Button>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-gray-200">
-                  <tr>
+            <div className="overflow-hidden rounded-xl border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
                     {[
                       t('settings.rooms.table.number'),
                       t('settings.rooms.table.type'),
@@ -332,170 +336,133 @@ export default function SettingsPage() {
                       t('settings.rooms.table.status'),
                       '',
                     ].map((h, i) => (
-                      <th key={i} className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                      <TableHead key={i} className="whitespace-nowrap uppercase tracking-wide">{h}</TableHead>
                     ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {rooms.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-bold text-slate-800">{r.room_number}</td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                    <TableRow key={r.id}>
+                      <TableCell className="font-bold text-foreground">{r.room_number}</TableCell>
+                      <TableCell>
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                           {t(`roomType.${r.room_type}` as any)}
                         </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{r.floor}</td>
-                      <td className="px-4 py-3 text-slate-600">{r.capacity}</td>
-                      <td className="px-4 py-3 text-slate-700 font-medium">{formatVND(r.base_price)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                          r.housekeeping_status === 'AVAILABLE' ? 'bg-green-100 text-green-700' :
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{r.floor}</TableCell>
+                      <TableCell className="text-muted-foreground">{r.capacity}</TableCell>
+                      <TableCell className="font-medium text-foreground">{formatVND(r.base_price)}</TableCell>
+                      <TableCell>
+                        <span className={cn(
+                          'rounded-full px-2 py-0.5 text-xs font-semibold',
+                          r.housekeeping_status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-700' :
                           r.housekeeping_status === 'DIRTY' ? 'bg-red-100 text-red-600' :
-                          r.housekeeping_status === 'CLEANING' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
+                          r.housekeeping_status === 'CLEANING' ? 'bg-amber-100 text-amber-700' :
+                          'bg-muted text-muted-foreground'
+                        )}>
                           {t(`roomStatus.${r.housekeeping_status}` as any)}
                         </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => openEditRoom(r)}
-                          className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        >
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="secondary" size="sm" onClick={() => openEditRoom(r)}>
                           {t('settings.rooms.editRoom')}
-                        </button>
-                      </td>
-                    </tr>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </div>
         )}
 
-        {/* My account — available to all roles */}
+        {/* My account */}
         <div>
-          <h2 className="text-lg font-bold text-slate-800 mb-4">{t('settings.myAccount.title')}</h2>
-          <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between">
+          <h2 className="mb-4 text-lg font-bold text-foreground">{t('settings.myAccount.title')}</h2>
+          <div className="flex items-center justify-between rounded-xl border bg-card p-5">
             <div>
-              <p className="text-sm font-semibold text-slate-800">{me?.full_name}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{me?.email}</p>
+              <p className="text-sm font-semibold text-foreground">{me?.full_name}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{me?.email}</p>
             </div>
-            <button
-              onClick={() => { setChangePwOld(''); setChangePwNew(''); setChangePwConfirm(''); setChangePwError(''); setShowChangePw(true) }}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-            >
+            <Button variant="secondary" onClick={() => { setChangePwOld(''); setChangePwNew(''); setChangePwConfirm(''); setChangePwError(''); setShowChangePw(true) }}>
               {t('settings.myAccount.changePassword')}
-            </button>
+            </Button>
           </div>
         </div>
 
+        {/* Commission rates */}
         {isOwnerOrAdmin && rates.length > 0 && (
           <div>
             <div className="mb-4">
-              <h2 className="text-lg font-bold text-slate-800">{t('settings.commission.title')}</h2>
-              <p className="text-sm text-slate-500 mt-1">{t('settings.commission.description')}</p>
+              <h2 className="text-lg font-bold text-foreground">{t('settings.commission.title')}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t('settings.commission.description')}</p>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">{t('settings.commission.source')}</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">{t('settings.commission.rate')}</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
+            <div className="overflow-hidden rounded-xl border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="uppercase tracking-wide">{t('settings.commission.source')}</TableHead>
+                    <TableHead className="uppercase tracking-wide">{t('settings.commission.rate')}</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {rates.map((r) => (
-                    <tr key={r.ota_source} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-800">
-                        {OTA_LABEL[r.ota_source] ?? r.ota_source}
-                      </td>
-                      <td className="px-4 py-3">
+                    <TableRow key={r.ota_source}>
+                      <TableCell className="font-medium text-foreground">{OTA_LABEL[r.ota_source] ?? r.ota_source}</TableCell>
+                      <TableCell>
                         {editingRate === r.ota_source ? (
                           <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.01"
+                            <Input
+                              type="number" min="0" max="100" step="0.01"
                               value={rateInput}
                               onChange={(e) => setRateInput(e.target.value)}
-                              className="border border-slate-300 rounded px-2 py-1 text-sm w-24 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="h-8 w-24"
                               autoFocus
                             />
-                            <span className="text-slate-500 text-sm">%</span>
+                            <span className="text-sm text-muted-foreground">%</span>
                           </div>
                         ) : (
-                          <span className="text-slate-700 font-mono">
-                            {(Number(r.rate) * 100).toFixed(2)}%
-                          </span>
+                          <span className="font-mono text-foreground">{(Number(r.rate) * 100).toFixed(2)}%</span>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
+                      </TableCell>
+                      <TableCell className="text-right">
                         {editingRate === r.ota_source ? (
                           <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => setEditingRate(null)}
-                              className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
-                            >
-                              {t('settings.commission.cancel')}
-                            </button>
-                            <button
-                              disabled={savingRate}
-                              onClick={() => saveRate(r.ota_source)}
-                              className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                            >
+                            <Button variant="outline" size="sm" onClick={() => setEditingRate(null)}>{t('settings.commission.cancel')}</Button>
+                            <Button size="sm" disabled={savingRate} onClick={() => saveRate(r.ota_source)}>
                               {savingRate ? t('settings.commission.saving') : t('settings.commission.save')}
-                            </button>
+                            </Button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => startEditRate(r)}
-                            className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          >
-                            {t('settings.commission.edit')}
-                          </button>
+                          <Button variant="secondary" size="sm" onClick={() => startEditRate(r)}>{t('settings.commission.edit')}</Button>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </div>
         )}
       </div>
 
+      {/* Room modal */}
       {roomModal.open && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="text-lg font-bold text-slate-800">
-                {roomModal.target ? t('settings.rooms.modal.editTitle') : t('settings.rooms.modal.addTitle')}
-              </h2>
-              <button onClick={() => setRoomModal({ open: false, target: null })} className="text-slate-400 hover:text-slate-600 text-xl">&#215;</button>
-            </div>
-            <form onSubmit={handleRoomSubmit} className="p-6 space-y-4">
+        <Dialog open onOpenChange={(o) => { if (!o) setRoomModal({ open: false, target: null }) }}>
+          <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
+            <DialogHeader className="border-b px-6 py-4">
+              <DialogTitle>{roomModal.target ? t('settings.rooms.modal.editTitle') : t('settings.rooms.modal.addTitle')}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleRoomSubmit} className="space-y-4 p-6">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelCls}>{t('settings.rooms.modal.number')} *</label>
-                  <input
-                    required
-                    value={roomForm.room_number}
-                    onChange={(e) => setRoomForm((f) => ({ ...f, room_number: e.target.value }))}
-                    placeholder="101"
-                    className={inputCls}
-                  />
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('settings.rooms.modal.number')} *</Label>
+                  <Input required value={roomForm.room_number} onChange={(e) => setRoomForm((f) => ({ ...f, room_number: e.target.value }))} placeholder="101" className="h-9" />
                 </div>
-                <div>
-                  <label className={labelCls}>{t('settings.rooms.modal.type')}</label>
-                  <select
-                    value={roomForm.room_type}
-                    onChange={(e) => setRoomForm((f) => ({ ...f, room_type: e.target.value }))}
-                    className={inputCls}
-                  >
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('settings.rooms.modal.type')}</Label>
+                  <select value={roomForm.room_type} onChange={(e) => setRoomForm((f) => ({ ...f, room_type: e.target.value }))} className={SELECT_CLASS}>
                     {ROOM_TYPES.map((rt) => (
                       <option key={rt} value={rt}>{t(`roomType.${rt}` as any)}</option>
                     ))}
@@ -503,47 +470,23 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelCls}>{t('settings.rooms.modal.floor')}</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={roomForm.floor}
-                    onChange={(e) => setRoomForm((f) => ({ ...f, floor: e.target.value }))}
-                    className={inputCls}
-                  />
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('settings.rooms.modal.floor')}</Label>
+                  <Input type="number" min="1" value={roomForm.floor} onChange={(e) => setRoomForm((f) => ({ ...f, floor: e.target.value }))} className="h-9" />
                 </div>
-                <div>
-                  <label className={labelCls}>{t('settings.rooms.modal.capacity')}</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={roomForm.capacity}
-                    onChange={(e) => setRoomForm((f) => ({ ...f, capacity: e.target.value }))}
-                    className={inputCls}
-                  />
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('settings.rooms.modal.capacity')}</Label>
+                  <Input type="number" min="1" value={roomForm.capacity} onChange={(e) => setRoomForm((f) => ({ ...f, capacity: e.target.value }))} className="h-9" />
                 </div>
               </div>
-              <div>
-                <label className={labelCls}>{t('settings.rooms.modal.basePrice')} *</label>
-                <input
-                  required
-                  type="number"
-                  min="0"
-                  value={roomForm.base_price}
-                  onChange={(e) => setRoomForm((f) => ({ ...f, base_price: e.target.value }))}
-                  placeholder="500000"
-                  className={inputCls}
-                />
+              <div className="space-y-1">
+                <Label className="text-xs">{t('settings.rooms.modal.basePrice')} *</Label>
+                <Input required type="number" min="0" value={roomForm.base_price} onChange={(e) => setRoomForm((f) => ({ ...f, base_price: e.target.value }))} placeholder="500000" className="h-9" />
               </div>
               {roomModal.target && (
-                <div>
-                  <label className={labelCls}>{t('settings.rooms.modal.housekeepingStatus')}</label>
-                  <select
-                    value={roomForm.housekeeping_status}
-                    onChange={(e) => setRoomForm((f) => ({ ...f, housekeeping_status: e.target.value }))}
-                    className={inputCls}
-                  >
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('settings.rooms.modal.housekeepingStatus')}</Label>
+                  <select value={roomForm.housekeeping_status} onChange={(e) => setRoomForm((f) => ({ ...f, housekeeping_status: e.target.value }))} className={SELECT_CLASS}>
                     {HK_STATUSES.map((s) => (
                       <option key={s} value={s}>{t(`roomStatus.${s}` as any)}</option>
                     ))}
@@ -551,21 +494,19 @@ export default function SettingsPage() {
                 </div>
               )}
               {roomError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{roomError}</p>
+                <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{roomError}</p>
               )}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setRoomModal({ open: false, target: null })}
-                  className="flex-1 border border-slate-300 text-slate-700 text-sm font-medium py-2 rounded-lg hover:bg-slate-50 transition-colors">
+                <Button type="button" variant="outline" size="lg" className="flex-1" onClick={() => setRoomModal({ open: false, target: null })}>
                   {t('common.cancel')}
-                </button>
-                <button type="submit" disabled={roomSaving}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                </Button>
+                <Button type="submit" size="lg" className="flex-1" disabled={roomSaving}>
                   {roomSaving ? t('settings.rooms.modal.submitting') : t('settings.rooms.modal.submit')}
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {showForm && (
@@ -577,105 +518,82 @@ export default function SettingsPage() {
 
       {/* Delete user confirm */}
       {deleteUserDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-2">{t('settings.users.deleteDialog.title')}</h3>
-            <p className="text-sm text-slate-600 mb-5">
-              {t('settings.users.deleteDialog.message', { name: deleteUserDialog.full_name })}
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteUserDialog(null)}
-                className="flex-1 border border-slate-300 text-slate-700 text-sm font-medium py-2 rounded-lg hover:bg-slate-50 transition-colors">
-                {t('common.cancel')}
-              </button>
-              <button onClick={() => handleDeleteUser(deleteUserDialog)}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
-                {t('settings.users.deleteDialog.confirm')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <Dialog open onOpenChange={(o) => { if (!o) setDeleteUserDialog(null) }}>
+          <DialogContent className="max-w-sm" showClose={false}>
+            <DialogHeader>
+              <DialogTitle>{t('settings.users.deleteDialog.title')}</DialogTitle>
+              <DialogDescription>{t('settings.users.deleteDialog.message', { name: deleteUserDialog.full_name })}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" size="lg" className="flex-1" onClick={() => setDeleteUserDialog(null)}>{t('common.cancel')}</Button>
+              <Button variant="destructive" size="lg" className="flex-1" onClick={() => handleDeleteUser(deleteUserDialog)}>{t('settings.users.deleteDialog.confirm')}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Reset password for another user */}
       {resetPasswordUser && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="text-base font-bold text-slate-800">
-                {t('settings.users.resetPasswordDialog.title', { name: resetPasswordUser.full_name })}
-              </h2>
-              <button onClick={() => setResetPasswordUser(null)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className={labelCls}>{t('settings.password.newPassword')}</label>
-                <input type="password" value={resetPwInput} onChange={(e) => setResetPwInput(e.target.value)}
-                  className={inputCls} placeholder="≥ 8 ký tự" />
+        <Dialog open onOpenChange={(o) => { if (!o) setResetPasswordUser(null) }}>
+          <DialogContent className="max-w-sm gap-0 overflow-hidden p-0">
+            <DialogHeader className="border-b px-6 py-4">
+              <DialogTitle>{t('settings.users.resetPasswordDialog.title', { name: resetPasswordUser.full_name })}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 p-6">
+              <div className="space-y-1">
+                <Label className="text-xs">{t('settings.password.newPassword')}</Label>
+                <Input type="password" value={resetPwInput} onChange={(e) => setResetPwInput(e.target.value)} className="h-9" placeholder="≥ 8 ký tự" />
               </div>
-              <div>
-                <label className={labelCls}>{t('settings.password.confirmPassword')}</label>
-                <input type="password" value={resetPwConfirm} onChange={(e) => setResetPwConfirm(e.target.value)}
-                  className={inputCls} placeholder="Nhập lại mật khẩu" />
+              <div className="space-y-1">
+                <Label className="text-xs">{t('settings.password.confirmPassword')}</Label>
+                <Input type="password" value={resetPwConfirm} onChange={(e) => setResetPwConfirm(e.target.value)} className="h-9" placeholder="Nhập lại mật khẩu" />
               </div>
               {resetPwError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{resetPwError}</p>
+                <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{resetPwError}</p>
               )}
               <div className="flex gap-3 pt-1">
-                <button onClick={() => setResetPasswordUser(null)}
-                  className="flex-1 border border-slate-300 text-slate-700 text-sm font-medium py-2 rounded-lg hover:bg-slate-50 transition-colors">
-                  {t('common.cancel')}
-                </button>
-                <button onClick={handleResetPassword} disabled={resetPwSaving}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                <Button variant="outline" size="lg" className="flex-1" onClick={() => setResetPasswordUser(null)}>{t('common.cancel')}</Button>
+                <Button size="lg" className="flex-1" onClick={handleResetPassword} disabled={resetPwSaving}>
                   {resetPwSaving ? '...' : t('settings.password.save')}
-                </button>
+                </Button>
               </div>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Change own password */}
       {showChangePw && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="text-base font-bold text-slate-800">{t('settings.password.changeTitle')}</h2>
-              <button onClick={() => setShowChangePw(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className={labelCls}>{t('settings.password.currentPassword')}</label>
-                <input type="password" value={changePwOld} onChange={(e) => setChangePwOld(e.target.value)}
-                  className={inputCls} placeholder="Mật khẩu hiện tại" />
+        <Dialog open onOpenChange={(o) => { if (!o) setShowChangePw(false) }}>
+          <DialogContent className="max-w-sm gap-0 overflow-hidden p-0">
+            <DialogHeader className="border-b px-6 py-4">
+              <DialogTitle>{t('settings.password.changeTitle')}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 p-6">
+              <div className="space-y-1">
+                <Label className="text-xs">{t('settings.password.currentPassword')}</Label>
+                <Input type="password" value={changePwOld} onChange={(e) => setChangePwOld(e.target.value)} className="h-9" placeholder="Mật khẩu hiện tại" />
               </div>
-              <div>
-                <label className={labelCls}>{t('settings.password.newPassword')}</label>
-                <input type="password" value={changePwNew} onChange={(e) => setChangePwNew(e.target.value)}
-                  className={inputCls} placeholder="≥ 8 ký tự" />
+              <div className="space-y-1">
+                <Label className="text-xs">{t('settings.password.newPassword')}</Label>
+                <Input type="password" value={changePwNew} onChange={(e) => setChangePwNew(e.target.value)} className="h-9" placeholder="≥ 8 ký tự" />
               </div>
-              <div>
-                <label className={labelCls}>{t('settings.password.confirmPassword')}</label>
-                <input type="password" value={changePwConfirm} onChange={(e) => setChangePwConfirm(e.target.value)}
-                  className={inputCls} placeholder="Nhập lại mật khẩu" />
+              <div className="space-y-1">
+                <Label className="text-xs">{t('settings.password.confirmPassword')}</Label>
+                <Input type="password" value={changePwConfirm} onChange={(e) => setChangePwConfirm(e.target.value)} className="h-9" placeholder="Nhập lại mật khẩu" />
               </div>
               {changePwError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{changePwError}</p>
+                <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{changePwError}</p>
               )}
               <div className="flex gap-3 pt-1">
-                <button onClick={() => setShowChangePw(false)}
-                  className="flex-1 border border-slate-300 text-slate-700 text-sm font-medium py-2 rounded-lg hover:bg-slate-50 transition-colors">
-                  {t('common.cancel')}
-                </button>
-                <button onClick={handleChangePassword} disabled={changePwSaving}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                <Button variant="outline" size="lg" className="flex-1" onClick={() => setShowChangePw(false)}>{t('common.cancel')}</Button>
+                <Button size="lg" className="flex-1" onClick={handleChangePassword} disabled={changePwSaving}>
                   {changePwSaving ? '...' : t('settings.password.save')}
-                </button>
+                </Button>
               </div>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </Layout>
   )

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.models.enums import BookingStatus, OTASource
 
-BookingAction = Literal["check_in", "check_out", "cancel", "no_show"]
+BookingAction = Literal["confirm", "check_in", "check_out", "cancel", "no_show"]
 
 
 class BookingOut(BaseModel):
@@ -26,6 +26,8 @@ class BookingOut(BaseModel):
     total_price: Decimal
     collected_amount: Decimal
     notes: str | None
+    is_archived: bool
+    archived_at: datetime | None
 
     model_config = {"from_attributes": True}
 
@@ -77,7 +79,8 @@ class BookingUpdate(BaseModel):
 
 class BookingStatusUpdate(BaseModel):
     action: BookingAction
-    room_id: int | None = None  # Required for check_in when booking has no room assigned
+    room_id: int | None = None   # Required for check_in when booking has no room assigned
+    reason: str | None = None    # Optional reason for cancel/no_show actions
 
 
 class PaymentUpdate(BaseModel):
@@ -88,3 +91,28 @@ class PaymentUpdate(BaseModel):
 class LateCheckoutSurcharge(BaseModel):
     amount: Decimal = Field(gt=0, description="Surcharge amount to add to total_price")
     notes: str | None = None
+
+
+class WalkInCreate(BaseModel):
+    room_id: int
+    guest_name: str = Field(min_length=1, max_length=150)
+    guest_phone: str | None = None
+    guest_id_type: str | None = None
+    guest_id_number: str | None = None
+    check_in_date: date
+    check_out_date: date
+    num_guests: int = Field(default=1, ge=1)
+    total_price: Decimal = Field(ge=0)
+    deposit_amount: Decimal = Field(default=Decimal("0"), ge=0)
+    payment_method: str = "CASH"
+    notes: str | None = None
+
+
+class BookingLogOut(BaseModel):
+    id: int
+    action: str
+    description: str
+    created_by_name: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

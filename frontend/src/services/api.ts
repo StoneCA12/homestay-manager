@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type {
   Bike, BikeRental, BikeRentalReport,
-  Booking, CalendarBooking, CommissionRate, DailyReport, DailyRevenue,
+  Booking, BookingLog, CalendarBooking, CommissionRate, DailyReport, DailyRevenue,
   DashboardStats, Expense, GuestLookup, MonthlyRevenue, Payment, Room, User,
 } from '../types'
 
@@ -31,6 +31,8 @@ export const authApi = {
 
 export const roomsApi = {
   list: () => api.get<Room[]>('/rooms/').then((r) => r.data),
+  available: (checkInDate: string, checkOutDate: string, roomType?: string) =>
+    api.get<Room[]>('/rooms/available', { params: { check_in_date: checkInDate, check_out_date: checkOutDate, room_type: roomType } }).then((r) => r.data),
   stats: () => api.get<DashboardStats>('/rooms/stats').then((r) => r.data),
   updateStatus: (roomId: number, toStatus: string, notes?: string) =>
     api.patch(`/housekeeping/${roomId}/status`, { to_status: toStatus, notes }).then((r) => r.data),
@@ -41,7 +43,7 @@ export const roomsApi = {
 }
 
 export const bookingsApi = {
-  list: (params?: { booking_status?: string; start_date?: string; end_date?: string; search?: string; limit?: number; offset?: number }) =>
+  list: (params?: { booking_status?: string; start_date?: string; end_date?: string; search?: string; archived?: boolean; limit?: number; offset?: number }) =>
     api.get<Booking[]>('/bookings/', { params }).then((r) => r.data),
   today: () => api.get<Booking[]>('/bookings/today').then((r) => r.data),
   getById: (id: number) => api.get<Booking>(`/bookings/${id}`).then((r) => r.data),
@@ -76,14 +78,35 @@ export const bookingsApi = {
     booking_ref?: string
     notes?: string
   }) => api.patch<Booking>(`/bookings/${id}`, data).then((r) => r.data),
-  updateStatus: (id: number, action: string, room_id?: number) =>
-    api.patch<Booking>(`/bookings/${id}/status`, { action, room_id }).then((r) => r.data),
+  updateStatus: (id: number, action: string, room_id?: number, reason?: string) =>
+    api.patch<Booking>(`/bookings/${id}/status`, { action, room_id, reason }).then((r) => r.data),
+  archive: (id: number): Promise<Booking> =>
+    api.post<Booking>(`/bookings/${id}/archive`).then((r) => r.data),
+  restore: (id: number): Promise<Booking> =>
+    api.post<Booking>(`/bookings/${id}/restore`).then((r) => r.data),
   getPayments: (id: number) =>
     api.get<Payment[]>(`/bookings/${id}/payments`).then((r) => r.data),
   addPayment: (id: number, data: { amount: number; method: string; notes?: string }) =>
     api.post<Booking>(`/bookings/${id}/payments`, data).then((r) => r.data),
   addLateCheckout: (id: number, data: { amount: number; notes?: string }) =>
     api.post<Booking>(`/bookings/${id}/late-checkout`, data).then((r) => r.data),
+  walkIn: (data: {
+    room_id: number
+    guest_name: string
+    guest_phone?: string
+    guest_id_type?: string
+    guest_id_number?: string
+    check_in_date: string
+    check_out_date: string
+    num_guests?: number
+    total_price: number
+    deposit_amount?: number
+    payment_method?: string
+    notes?: string
+  }): Promise<Booking> =>
+    api.post<Booking>('/bookings/walk-in', data).then((r) => r.data),
+  getLogs: (id: number): Promise<BookingLog[]> =>
+    api.get<BookingLog[]>(`/bookings/${id}/logs`).then((r) => r.data),
 }
 
 export const revenueApi = {

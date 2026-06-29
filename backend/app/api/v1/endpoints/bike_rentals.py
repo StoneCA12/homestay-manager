@@ -13,6 +13,86 @@ from app.models.bike_rental import BikeRental
 from app.models.booking import Booking
 from app.models.enums import BikeRentalStatus, BikeStatus
 from app.models.user import User
+
+
+def _find_available_bikes(
+    db: Session,
+    start_date: date,
+    end_date: date,
+    exclude_bike_id: int,
+    limit: int = 3,
+) -> list[dict]:
+    from sqlalchemy import select
+    conflicting_ids = (
+        select(BikeRental.bike_id)
+        .where(
+            BikeRental.status == BikeRentalStatus.ACTIVE,
+            BikeRental.start_date <= end_date,
+            BikeRental.end_date >= start_date,
+        )
+    )
+    available = (
+        db.query(Bike)
+        .filter(
+            Bike.id != exclude_bike_id,
+            Bike.status != BikeStatus.MAINTENANCE,
+            ~Bike.id.in_(conflicting_ids),
+        )
+        .order_by(Bike.name)
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "bike_id": b.id,
+            "bike_name": b.name,
+            "plate_number": b.plate_number,
+            "daily_rate": str(b.daily_rate),
+        }
+        for b in available
+    ]
+
+
+def _check_bike_availability(
+    db: Session,
+    bike_id: int,
+    start_date: date,
+    end_date: date,
+    exclude_rental_id: int | None = None,
+) -> None:
+    q = db.query(BikeRental).filter(
+        BikeRental.bike_id == bike_id,
+        BikeRental.status == BikeRentalStatus.ACTIVE,
+        BikeRental.start_date <= end_date,
+        BikeRental.end_date >= start_date,
+    )
+    if exclude_rental_id:
+        q = q.filter(BikeRental.id != exclude_rental_id)
+    conflict = q.first()
+    if not conflict:
+        return
+
+    bike = db.get(Bike, bike_id)
+    bike_label = bike.name if bike else f"xe #{bike_id}"
+    suggestions = _find_available_bikes(db, start_date, end_date, bike_id)
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "type": "BIKE_CONFLICT",
+            "message": (
+                f"{bike_label} đã được đặt từ {conflict.start_date} "
+                f"đến {conflict.end_date}"
+            ),
+            "conflict": {
+                "rental_id": conflict.id,
+                "guest_name": conflict.booking.guest.full_name if conflict.booking and conflict.booking.guest else "—",
+                "start_date": str(conflict.start_date),
+                "end_date": str(conflict.end_date),
+                "room_number": conflict.booking.room.room_number if conflict.booking and conflict.booking.room else None,
+            },
+            "suggestions": suggestions,
+        },
+    )
 from app.schemas.bike import (
     BikeCreate,
     BikeOut,
@@ -193,22 +273,7 @@ def create_rental(
     if not booking:
         raise HTTPException(status_code=404, detail="Đặt phòng không tồn tại")
 
-    # Check no overlap for this bike
-    conflict = (
-        db.query(BikeRental)
-        .filter(
-            BikeRental.bike_id == body.bike_id,
-            BikeRental.status == BikeRentalStatus.ACTIVE,
-            BikeRental.start_date <= body.end_date,
-            BikeRental.end_date >= body.start_date,
-        )
-        .first()
-    )
-    if conflict:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Xe đã được đặt từ {conflict.start_date} đến {conflict.end_date}",
-        )
+    _check_bike_availability(db, body.bike_id, body.start_date, body.end_date)
 
     num_days = _calc_days(body.start_date, body.end_date)
     total = bike.daily_rate * num_days
@@ -248,6 +313,9 @@ def update_rental(
     new_end = body.end_date or rental.end_date
     if new_end < new_start:
         raise HTTPException(status_code=400, detail="Ngày trả phải sau hoặc bằng ngày nhận")
+
+    if body.start_date is not None or body.end_date is not None:
+        _check_bike_availability(db, rental.bike_id, new_start, new_end, exclude_rental_id=rental_id)
 
     if body.start_date is not None:
         rental.start_date = body.start_date

@@ -6,8 +6,8 @@ export type RoomStatus = 'AVAILABLE' | 'DIRTY' | 'CLEANING' | 'OUT_OF_ORDER'
 export type DisplayStatus =
   | 'AVAILABLE' | 'OCCUPIED' | 'ARRIVAL_TODAY' | 'CHECKOUT_TODAY'
   | 'DIRTY' | 'CLEANING' | 'OUT_OF_ORDER' | 'OVERBOOKING'
-export type BookingStatus = 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED' | 'NO_SHOW'
-export type BookingAction = 'check_in' | 'check_out' | 'cancel' | 'no_show'
+export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED' | 'NO_SHOW'
+export type BookingAction = 'confirm' | 'check_in' | 'check_out' | 'cancel' | 'no_show'
 export type OTASource = 'AGODA' | 'BOOKING_COM' | 'TRAVELOKA' | 'ZALO' | 'DIRECT'
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'OTA_COLLECTED'
 export type ExpenseCategory = 'CLEANING' | 'SUPPLIES' | 'OTHER' | 'UTILITIES' | 'SALARIES' | 'MAINTENANCE'
@@ -76,6 +76,8 @@ export interface Booking {
   total_price: string
   collected_amount: string
   notes: string | null
+  is_archived: boolean
+  archived_at: string | null
 }
 
 export interface CalendarBooking {
@@ -99,6 +101,14 @@ export interface Payment {
   paid_at: string
   recorded_by_name: string | null
   notes: string | null
+}
+
+export interface BookingLog {
+  id: number
+  action: string
+  description: string
+  created_by_name: string | null
+  created_at: string
 }
 
 export interface Expense {

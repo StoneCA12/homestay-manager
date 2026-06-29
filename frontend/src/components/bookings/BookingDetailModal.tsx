@@ -1,23 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
-import type { Bike, BikeRental, Booking, Payment } from '../../types'
+import type { Bike, BikeRental, Booking, BookingLog, Payment, Room } from '../../types'
 import { bikesApi, bookingsApi } from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
 import { formatDate, formatVND } from '../../utils/format'
+import { resolveCheckInWarnings, resolveCheckOutWarnings, resolveBikeWarnings } from '../../lib/bookingWarnings'
+import { parseConflict, extractErrorMessage, type ConflictDetail } from '../../lib/conflictParser'
+import ConflictAlert from './ConflictAlert'
 import ReceiptPrint from '../print/ReceiptPrint'
 import OD1Print from '../print/OD1Print'
 import ConfirmationPrint from '../print/ConfirmationPrint'
+import BookingStatusBadge from './BookingStatusBadge'
+import WarningBanner from './WarningBanner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-
-const STATUS_BADGE: Record<string, string> = {
-  CONFIRMED:   'bg-blue-100 text-blue-700',
-  CHECKED_IN:  'bg-emerald-100 text-emerald-700',
-  CHECKED_OUT: 'bg-muted text-muted-foreground',
-  CANCELLED:   'bg-red-100 text-red-600',
-  NO_SHOW:     'bg-amber-100 text-amber-700',
-}
 
 const METHOD_ICON: Record<string, string> = {
   CASH:          '💵',
@@ -36,17 +34,24 @@ function nightCount(checkIn: string, checkOut: string): number {
 
 interface Props {
   booking: Booking
+  rooms?: Room[]
   onClose: () => void
   onEdit: (b: Booking) => void
   onAction: (b: Booking, action: string) => void
   onPay: (b: Booking) => void
+  onStatusChanged?: (b: Booking) => void
+  onArchived?: (b: Booking) => void
+  onRestored?: (b: Booking) => void
 }
 
-export default function BookingDetailModal({ booking: initialBooking, onClose, onEdit, onAction, onPay }: Props) {
+export default function BookingDetailModal({ booking: initialBooking, rooms = [], onClose, onEdit, onAction, onPay, onStatusChanged, onArchived, onRestored }: Props) {
   const { t } = useTranslation()
+  const { user } = useAuth()
+  const canViewLogs = user?.role === 'OWNER' || user?.role === 'ADMIN'
   const [booking, setBooking] = useState<Booking>(initialBooking)
   const [payments, setPayments] = useState<Payment[]>([])
   const [bikeRentals, setBikeRentals] = useState<BikeRental[]>([])
+  const [logs, setLogs] = useState<BookingLog[]>([])
   const [loadingPayments, setLoadingPayments] = useState(true)
   const [showAddBikeRental, setShowAddBikeRental] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
@@ -63,23 +68,50 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
   const [addEndDate, setAddEndDate] = useState(initialBooking.check_out_date)
   const [addSaving, setAddSaving] = useState(false)
   const [addError, setAddError] = useState('')
+  const [addConflict, setAddConflict] = useState<ConflictDetail | null>(null)
+
+  // Archive / cancel / restore state
+  const [cancelPending, setCancelPending] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelSaving, setCancelSaving] = useState(false)
+  const [cancelError, setCancelError] = useState('')
+  const [archiving, setArchiving] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const [restoreConflict, setRestoreConflict] = useState<ConflictDetail | null>(null)
 
   useEffect(() => {
-    Promise.all([
+    const fetches: Promise<any>[] = [
       bookingsApi.getById(booking.id),
       bookingsApi.getPayments(booking.id),
       bikesApi.listRentals({ booking_id: booking.id }),
-    ]).then(([fresh, pmts, rentals]) => {
+    ]
+    if (canViewLogs) fetches.push(bookingsApi.getLogs(booking.id))
+
+    Promise.all(fetches).then(([fresh, pmts, rentals, logEntries]) => {
       setBooking(fresh)
       setPayments(pmts)
       setBikeRentals(rentals)
+      if (logEntries) setLogs(logEntries)
     }).catch(() => {}).finally(() => setLoadingPayments(false))
-  }, [booking.id])
+  }, [booking.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const nights      = nightCount(booking.check_in_date, booking.check_out_date)
   const outstanding = Number(booking.total_price) - Number(booking.collected_amount)
   const isActive    = booking.status === 'CONFIRMED' || booking.status === 'CHECKED_IN'
   const isTerminal  = ['CHECKED_OUT', 'CANCELLED', 'NO_SHOW'].includes(booking.status)
+
+  const currentRoom = useMemo(
+    () => rooms.find((r) => r.id === booking.room_id) ?? null,
+    [rooms, booking.room_id],
+  )
+  const checkInWarnings = useMemo(
+    () => booking.status === 'CONFIRMED' ? resolveCheckInWarnings(booking, currentRoom) : [],
+    [booking, currentRoom],
+  )
+  const checkOutWarnings = useMemo(
+    () => booking.status === 'CHECKED_IN' ? resolveCheckOutWarnings(booking) : [],
+    [booking],
+  )
 
   const ID_TYPE_LABEL: Record<string, string> = {
     CCCD: 'CCCD', CMND: 'CMND', PASSPORT: 'Hộ chiếu',
@@ -99,7 +131,7 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
   const handleAddBikeRental = async () => {
     if (!addBikeId) { setAddError('Vui lòng chọn xe'); return }
     if (addEndDate < addStartDate) { setAddError('Ngày trả phải sau ngày nhận'); return }
-    setAddSaving(true); setAddError('')
+    setAddSaving(true); setAddError(''); setAddConflict(null)
     try {
       const rental = await bikesApi.createRental({
         bike_id: Number(addBikeId),
@@ -109,10 +141,56 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
       })
       setBikeRentals((prev) => [...prev, rental])
       setShowAddBikeRental(false)
-    } catch (e: any) {
-      setAddError(e?.response?.data?.detail ?? 'Lỗi tạo thuê xe')
+    } catch (e: unknown) {
+      const parsed = parseConflict(e)
+      if (parsed) { setAddConflict(parsed); setAddError('') }
+      else { setAddError(extractErrorMessage(e)); setAddConflict(null) }
     } finally {
       setAddSaving(false)
+    }
+  }
+
+  const handleCancelConfirm = async () => {
+    setCancelSaving(true)
+    setCancelError('')
+    try {
+      const updated = await bookingsApi.updateStatus(booking.id, 'cancel', undefined, cancelReason.trim() || undefined)
+      setBooking(updated)
+      setCancelPending(false)
+      setCancelReason('')
+      onStatusChanged?.(updated)
+    } catch (e: unknown) {
+      setCancelError(extractErrorMessage(e))
+    } finally {
+      setCancelSaving(false)
+    }
+  }
+
+  const handleArchive = async () => {
+    setArchiving(true)
+    try {
+      const updated = await bookingsApi.archive(booking.id)
+      setBooking(updated)
+      onArchived?.(updated)
+    } catch {
+      // archive failures are rare; surface via future global error handling
+    } finally {
+      setArchiving(false)
+    }
+  }
+
+  const handleRestore = async () => {
+    setRestoring(true)
+    setRestoreConflict(null)
+    try {
+      const updated = await bookingsApi.restore(booking.id)
+      setBooking(updated)
+      onRestored?.(updated)
+    } catch (e: unknown) {
+      const parsed = parseConflict(e)
+      if (parsed) setRestoreConflict(parsed)
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -149,9 +227,7 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
               <h2 className="text-base font-bold text-foreground">Đặt phòng #{booking.id}</h2>
-              <span className={cn('rounded-full px-2.5 py-1 text-xs font-semibold', STATUS_BADGE[booking.status] ?? 'bg-muted text-muted-foreground')}>
-                {t(`status.${booking.status}` as any)}
-              </span>
+              <BookingStatusBadge status={booking.status} className="px-2.5 py-1" />
             </div>
             {booking.booking_ref && (
               <p className="mt-1 text-xs text-muted-foreground">Mã: {booking.booking_ref}</p>
@@ -268,7 +344,7 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
               {showAddBikeRental && (
                 <div className="mb-3 space-y-2.5 rounded-xl border border-blue-200 bg-blue-50 p-3">
                   <p className="text-xs font-semibold text-blue-700">Thêm thuê xe máy</p>
-                  <select value={addBikeId} onChange={(e) => setAddBikeId(e.target.value)} className={cn(SELECT_CLASS, 'bg-card')}>
+                  <select value={addBikeId} onChange={(e) => { setAddBikeId(e.target.value); setAddConflict(null) }} className={cn(SELECT_CLASS, 'bg-card')}>
                     <option value="">-- Chọn xe --</option>
                     {availableBikes.filter((b) => b.status !== 'MAINTENANCE').map((b) => (
                       <option key={b.id} value={b.id}>
@@ -277,14 +353,17 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
                       </option>
                     ))}
                   </select>
+                  {selectedAddBike && (
+                    <WarningBanner warnings={resolveBikeWarnings(selectedAddBike)} key={selectedAddBike.id} />
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <p className="mb-1 text-[10px] text-muted-foreground">Ngày nhận</p>
-                      <Input type="date" value={addStartDate} onChange={(e) => setAddStartDate(e.target.value)} className="h-9 bg-card" />
+                      <Input type="date" value={addStartDate} onChange={(e) => { setAddStartDate(e.target.value); setAddConflict(null) }} className="h-9 bg-card" />
                     </div>
                     <div>
                       <p className="mb-1 text-[10px] text-muted-foreground">Ngày trả</p>
-                      <Input type="date" value={addEndDate} onChange={(e) => setAddEndDate(e.target.value)} className="h-9 bg-card" />
+                      <Input type="date" value={addEndDate} onChange={(e) => { setAddEndDate(e.target.value); setAddConflict(null) }} className="h-9 bg-card" />
                     </div>
                   </div>
                   {selectedAddBike && (
@@ -292,7 +371,14 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
                       {addDays} ngày × {formatVND(selectedAddBike.daily_rate)} = <strong>{formatVND(addPreview)}</strong>
                     </p>
                   )}
-                  {addError && <p className="text-xs text-destructive">{addError}</p>}
+                  {addConflict ? (
+                    <ConflictAlert
+                      conflict={addConflict}
+                      onSelectBike={(bikeId) => { setAddBikeId(String(bikeId)); setAddConflict(null) }}
+                    />
+                  ) : addError ? (
+                    <p className="text-xs text-destructive">{addError}</p>
+                  ) : null}
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowAddBikeRental(false)}>Hủy</Button>
                     <Button size="sm" className="flex-1" onClick={handleAddBikeRental} disabled={addSaving}>
@@ -350,50 +436,145 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
               <p className="text-sm leading-relaxed text-muted-foreground">{booking.notes}</p>
             </Section>
           )}
+
+          {/* Activity log — admin/owner only */}
+          {canViewLogs && (
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Lịch sử hoạt động{logs.length > 0 ? ` (${logs.length})` : ''}
+              </p>
+              {loadingPayments ? (
+                <p className="py-2 text-xs text-muted-foreground">Đang tải...</p>
+              ) : logs.length === 0 ? (
+                <p className="py-1 text-xs text-muted-foreground">Chưa có hoạt động nào</p>
+              ) : (
+                <ol className="relative border-l border-border ml-2 space-y-0">
+                  {logs.map((entry) => (
+                    <li key={entry.id} className="pl-4 pb-3 last:pb-0">
+                      <span className="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-muted-foreground/40" />
+                      <p className="text-xs font-medium text-foreground leading-snug">{entry.description}</p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        {new Date(entry.created_at).toLocaleString('vi-VN', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                        })}
+                        {entry.created_by_name && <span> · {entry.created_by_name}</span>}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Actions footer */}
         <div className="flex-shrink-0 space-y-2 border-t border-border px-5 pb-5 pt-3">
-          {/* Primary actions — active bookings only */}
-          {!isTerminal && (
-            <div className="flex flex-wrap gap-2">
-              {booking.status === 'CONFIRMED' && (
-                <Button
-                  size="lg"
-                  onClick={() => { onClose(); onAction(booking, 'check_in') }}
-                  className={cn('min-w-[100px] flex-1 text-white', booking.room_id ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-orange-400 hover:bg-orange-500')}
-                >
-                  Nhận phòng
+
+          {/* Restore conflict — shown when restore re-detects a room overlap */}
+          {restoreConflict && (
+            <ConflictAlert conflict={restoreConflict} />
+          )}
+
+          {/* Restore button — archived or terminal bookings */}
+          {(booking.is_archived || booking.status === 'CANCELLED' || booking.status === 'NO_SHOW') && canViewLogs && (
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={handleRestore}
+              disabled={restoring}
+              className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            >
+              {restoring ? 'Đang khôi phục...' : '↩ Khôi phục đặt phòng'}
+            </Button>
+          )}
+
+          {/* Inline cancel form — replaces action buttons when active */}
+          {cancelPending && (
+            <div className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-semibold text-red-700">Hủy đặt phòng — Lý do (không bắt buộc)</p>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Khách yêu cầu hủy, thay đổi kế hoạch..."
+                rows={2}
+                className="w-full resize-none rounded-lg border border-red-200 bg-card px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              />
+              {cancelError && <p className="text-xs text-destructive">{cancelError}</p>}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setCancelPending(false); setCancelReason(''); setCancelError('') }}>
+                  Quay lại
                 </Button>
-              )}
-              {booking.status === 'CHECKED_IN' && (
-                <Button
-                  size="lg"
-                  onClick={() => { onClose(); onAction(booking, 'check_out') }}
-                  className="min-w-[100px] flex-1 bg-blue-500 text-white hover:bg-blue-600"
-                >
-                  Trả phòng
+                <Button size="sm" onClick={handleCancelConfirm} disabled={cancelSaving} className="flex-1 bg-red-600 text-white hover:bg-red-700">
+                  {cancelSaving ? 'Đang hủy...' : 'Xác nhận hủy'}
                 </Button>
-              )}
-              {isActive && (
-                <Button variant="secondary" size="lg" onClick={() => { onClose(); onPay(booking) }} className="min-w-[100px] flex-1">
-                  Thu tiền
-                </Button>
-              )}
-              {isActive && (
-                <Button variant="outline" size="lg" onClick={() => { onClose(); onEdit(booking) }} className="min-w-[100px] flex-1">
-                  Sửa
-                </Button>
-              )}
-              {booking.status === 'CHECKED_IN' && !showLateCheckout && (
-                <button
-                  onClick={() => { setShowLateCheckout(true); setLateError('') }}
-                  className="w-full rounded-xl border border-amber-300 bg-amber-50 py-2 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100"
-                >
-                  🕐 Phụ thu trả phòng muộn
-                </button>
-              )}
+              </div>
             </div>
+          )}
+
+          {/* Primary actions — non-terminal, non-archived, not in cancel form */}
+          {!isTerminal && !booking.is_archived && !cancelPending && (
+            <>
+              <WarningBanner
+                warnings={booking.status === 'CONFIRMED' ? checkInWarnings : checkOutWarnings}
+                key={`w-${booking.status}-${booking.room_id ?? 0}`}
+              />
+              <div className="flex flex-wrap gap-2">
+                {booking.status === 'PENDING' && (
+                  <Button
+                    size="lg"
+                    onClick={() => { onClose(); onAction(booking, 'confirm') }}
+                    className="min-w-[100px] flex-1 bg-blue-500 text-white hover:bg-blue-600"
+                  >
+                    Xác nhận đặt phòng
+                  </Button>
+                )}
+                {booking.status === 'CONFIRMED' && (
+                  <Button
+                    size="lg"
+                    onClick={() => { onClose(); onAction(booking, 'check_in') }}
+                    className={cn('min-w-[100px] flex-1 text-white', booking.room_id ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-orange-400 hover:bg-orange-500')}
+                  >
+                    Nhận phòng
+                  </Button>
+                )}
+                {booking.status === 'CHECKED_IN' && (
+                  <Button
+                    size="lg"
+                    onClick={() => { onClose(); onAction(booking, 'check_out') }}
+                    className="min-w-[100px] flex-1 bg-blue-500 text-white hover:bg-blue-600"
+                  >
+                    Trả phòng
+                  </Button>
+                )}
+                {isActive && (
+                  <Button variant="secondary" size="lg" onClick={() => { onClose(); onPay(booking) }} className="min-w-[100px] flex-1">
+                    Thu tiền
+                  </Button>
+                )}
+                {isActive && (
+                  <Button variant="outline" size="lg" onClick={() => { onClose(); onEdit(booking) }} className="min-w-[100px] flex-1">
+                    Sửa
+                  </Button>
+                )}
+                {booking.status === 'CHECKED_IN' && !showLateCheckout && (
+                  <button
+                    onClick={() => { setShowLateCheckout(true); setLateError('') }}
+                    className="w-full rounded-xl border border-amber-300 bg-amber-50 py-2 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100"
+                  >
+                    🕐 Phụ thu trả phòng muộn
+                  </button>
+                )}
+                {/* Cancel trigger — shown for all cancellable statuses */}
+                {booking.status !== 'CHECKED_OUT' && (
+                  <button
+                    onClick={() => { setCancelPending(true); setCancelError('') }}
+                    className="w-full rounded-xl border border-red-200 bg-red-50 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+                  >
+                    Hủy đặt phòng
+                  </button>
+                )}
+              </div>
+            </>
           )}
 
           {/* Late checkout inline form */}
@@ -424,6 +605,17 @@ export default function BookingDetailModal({ booking: initialBooking, onClose, o
               📋 Tạm trú
             </Button>
           </div>
+
+          {/* Archive — admin/owner only, for non-active bookings */}
+          {canViewLogs && !booking.is_archived && booking.status !== 'CHECKED_IN' && !cancelPending && (
+            <button
+              onClick={handleArchive}
+              disabled={archiving}
+              className="w-full rounded-xl border border-muted py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive/70 disabled:opacity-50"
+            >
+              {archiving ? 'Đang lưu trữ...' : '🗂 Lưu trữ đặt phòng'}
+            </button>
+          )}
         </div>
       </div>
 

@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { bookingsApi, guestsApi } from '../../services/api'
 import type { Booking, OTASource, Room } from '../../types'
+import { parseConflict, extractErrorMessage, type ConflictDetail } from '../../lib/conflictParser'
+import { resolveRoomWarnings } from '../../lib/bookingWarnings'
+import ConflictAlert from './ConflictAlert'
+import WarningBanner from './WarningBanner'
 
 const OTA_SOURCES: OTASource[] = ['AGODA', 'BOOKING_COM', 'TRAVELOKA', 'ZALO', 'DIRECT']
 const ID_TYPES = ['CCCD', 'CMND', 'PASSPORT']
@@ -41,6 +45,7 @@ export default function BookingFormModal({ rooms, onClose, onCreated }: Props) {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [conflict, setConflict] = useState<ConflictDetail | null>(null)
   const [autofilled, setAutofilled] = useState(false)
   const [lookingUp, setLookingUp] = useState(false)
 
@@ -48,6 +53,7 @@ export default function BookingFormModal({ rooms, onClose, onCreated }: Props) {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setForm((prev) => ({ ...prev, [k]: e.target.value }))
       if (k === 'guest_phone') setAutofilled(false)
+      if (k === 'room_id' || k === 'check_in_date' || k === 'check_out_date') setConflict(null)
     }
 
   const handlePhoneBlur = async () => {
@@ -91,8 +97,10 @@ export default function BookingFormModal({ rooms, onClose, onCreated }: Props) {
         notes: form.notes || undefined,
       })
       onCreated(created)
-    } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Không thể tạo đặt phòng.')
+    } catch (err: unknown) {
+      const parsed = parseConflict(err)
+      if (parsed) { setConflict(parsed); setError('') }
+      else { setError(extractErrorMessage(err)); setConflict(null) }
     } finally {
       setSubmitting(false)
     }
@@ -128,6 +136,12 @@ export default function BookingFormModal({ rooms, onClose, onCreated }: Props) {
               </select>
             </div>
           </div>
+          {form.room_id && (
+            <WarningBanner
+              warnings={resolveRoomWarnings(rooms.find((r) => r.id === Number(form.room_id)))}
+              key={form.room_id}
+            />
+          )}
 
           {/* Phone (with autofill) + Name */}
           <div className="grid grid-cols-2 gap-4">
@@ -202,9 +216,14 @@ export default function BookingFormModal({ rooms, onClose, onCreated }: Props) {
             <textarea value={form.notes} onChange={set('notes')} rows={2} className={`${inputCls} resize-none`} />
           </div>
 
-          {error && (
+          {conflict ? (
+            <ConflictAlert
+              conflict={conflict}
+              onSelectRoom={(roomId) => { setForm((f) => ({ ...f, room_id: String(roomId) })); setConflict(null) }}
+            />
+          ) : error ? (
             <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-          )}
+          ) : null}
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-input py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted">

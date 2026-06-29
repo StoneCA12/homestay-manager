@@ -2,7 +2,7 @@ import math
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -12,13 +12,22 @@ from sqlalchemy.orm import joinedload
 
 from app.models.bike_rental import BikeRental as BikeRentalModel
 from app.models.booking import Booking
-from app.models.enums import BikeRentalStatus, BookingStatus, RoomStatus
+from app.models.enums import BikeRentalStatus, BookingStatus, RoomStatus, RoomType
 from app.models.guest import Guest
 from app.models.room import Room
 from app.models.user import User
 from app.schemas.room import DashboardStats, DisplayStatus, RoomCreate, RoomOut, RoomUpdate
 
 router = APIRouter()
+
+# Statuses that hold a room (mirrors bookings.py _ACTIVE)
+_ACTIVE = [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN]
+
+_HK_TO_DISPLAY: dict[RoomStatus, DisplayStatus] = {
+    RoomStatus.DIRTY: DisplayStatus.DIRTY,
+    RoomStatus.CLEANING: DisplayStatus.CLEANING,
+    RoomStatus.OUT_OF_ORDER: DisplayStatus.OUT_OF_ORDER,
+}
 
 
 def _compute_display_status(
@@ -176,6 +185,51 @@ def dashboard_stats(
         dirty=dirty,
         occupancy_warning_dates=warning_dates,
     )
+
+
+@router.get("/available", response_model=list[RoomOut])
+def available_rooms(
+    check_in_date: date,
+    check_out_date: date,
+    room_type: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Return rooms that have no active booking overlapping the given date range."""
+    if check_out_date <= check_in_date:
+        raise HTTPException(status_code=400, detail="Ngày trả phòng phải sau ngày nhận phòng")
+
+    conflicting_ids = (
+        select(Booking.room_id)
+        .where(
+            Booking.status.in_(_ACTIVE),
+            Booking.check_in_date < check_out_date,
+            Booking.check_out_date > check_in_date,
+            Booking.room_id.isnot(None),
+        )
+    )
+
+    q = db.query(Room).filter(~Room.id.in_(conflicting_ids))
+    if room_type:
+        try:
+            q = q.filter(Room.room_type == RoomType(room_type))
+        except ValueError:
+            pass
+
+    rooms = q.order_by(Room.room_number).all()
+    return [
+        RoomOut(
+            id=r.id,
+            room_number=r.room_number,
+            room_type=r.room_type,
+            floor=r.floor,
+            capacity=r.capacity,
+            base_price=r.base_price,
+            housekeeping_status=r.housekeeping_status,
+            display_status=_HK_TO_DISPLAY.get(r.housekeeping_status, DisplayStatus.AVAILABLE),
+        )
+        for r in rooms
+    ]
 
 
 @router.post("/", response_model=RoomOut, status_code=201)

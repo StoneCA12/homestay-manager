@@ -5,8 +5,12 @@ import { AlertTriangle, Check, MoreHorizontal, Plus, Search } from 'lucide-react
 import BookingCalendar from '../../components/bookings/BookingCalendar'
 import BookingDetailModal from '../../components/bookings/BookingDetailModal'
 import BookingFormModal from '../../components/bookings/BookingFormModal'
+import BookingStatusBadge from '../../components/bookings/BookingStatusBadge'
 import EditBookingModal from '../../components/bookings/EditBookingModal'
 import PaymentModal from '../../components/bookings/PaymentModal'
+import UndoToast, { type UndoAction } from '../../components/bookings/UndoToast'
+import CheckInWizard from '../../components/checkin/CheckInWizard'
+import WalkInWizard from '../../components/walkin/WalkInWizard'
 import Layout from '../../components/layout/Layout'
 import { bookingsApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
@@ -42,24 +46,7 @@ import {
 const OTA_BANNER_KEY = 'lastBookingsVisit'
 const PAGE_SIZE = 50
 
-type Tab = 'today' | 'all' | 'calendar'
-
-const STATUS_BADGE: Record<string, string> = {
-  CONFIRMED:   'bg-blue-100 text-blue-700',
-  CHECKED_IN:  'bg-emerald-100 text-emerald-700',
-  CHECKED_OUT: 'bg-muted text-muted-foreground',
-  CANCELLED:   'bg-red-100 text-red-600',
-  NO_SHOW:     'bg-amber-100 text-amber-700',
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const { t } = useTranslation()
-  return (
-    <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', STATUS_BADGE[status] ?? 'bg-muted text-muted-foreground')}>
-      {t(`status.${status}` as any)}
-    </span>
-  )
-}
+type Tab = 'today' | 'all' | 'archived' | 'calendar'
 
 function firstOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -151,6 +138,9 @@ export default function BookingsPage() {
   const [search, setSearch] = useState('')
   const [dialog, setDialog] = useState<DialogState | null>(null)
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null)
+  const [undoAction, setUndoAction] = useState<UndoAction | null>(null)
+  const [checkInTarget, setCheckInTarget] = useState<Booking | null>(null)
+  const [showWalkIn, setShowWalkIn] = useState(false)
 
   useEffect(() => {
     if (user?.role !== 'RECEPTIONIST') {
@@ -158,14 +148,23 @@ export default function BookingsPage() {
     }
   }, [user])
 
-  // Deep-link from the dashboard ops panels: open the specific booking detail.
+  // Deep-link: open a specific booking detail, or switch to a tab via FAB navigation.
   useEffect(() => {
-    const openId = (location.state as { openBookingId?: number } | null)?.openBookingId
-    if (openId) {
-      bookingsApi.getById(openId).then(setDetailBooking).catch(() => {})
-      // Clear the state so navigating back doesn't re-open the modal.
-      navigate(location.pathname, { replace: true, state: null })
+    const state = location.state as { openBookingId?: number; fabTab?: string } | null
+    if (!state) return
+
+    if (state.openBookingId) {
+      bookingsApi.getById(state.openBookingId).then(setDetailBooking).catch(() => {})
     }
+
+    if (state.fabTab) {
+      const target = state.fabTab as Tab
+      setTab(target)
+      loadBookings(target)
+    }
+
+    // Clear so back-navigation doesn't re-trigger.
+    navigate(location.pathname, { replace: true, state: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -175,11 +174,16 @@ export default function BookingsPage() {
     setHasMore(false)
     const req = view === 'today'
       ? bookingsApi.today()
-      : bookingsApi.list({ search: q || undefined, limit: PAGE_SIZE, offset: 0 })
+      : bookingsApi.list({
+          search: view === 'all' ? (q || undefined) : undefined,
+          archived: view === 'archived',
+          limit: PAGE_SIZE,
+          offset: 0,
+        })
     req
       .then((rows) => {
         setBookings(rows)
-        if (view === 'all') setHasMore(rows.length === PAGE_SIZE)
+        if (view === 'all' || view === 'archived') setHasMore(rows.length === PAGE_SIZE)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -188,7 +192,12 @@ export default function BookingsPage() {
   const loadMore = () => {
     setLoadingMore(true)
     bookingsApi
-      .list({ search: search || undefined, limit: PAGE_SIZE, offset: bookings.length })
+      .list({
+        search: tab === 'all' ? (search || undefined) : undefined,
+        archived: tab === 'archived',
+        limit: PAGE_SIZE,
+        offset: bookings.length,
+      })
       .then((rows) => {
         setBookings((prev) => [...prev, ...rows])
         setHasMore(rows.length === PAGE_SIZE)
@@ -239,7 +248,7 @@ export default function BookingsPage() {
 
   const handleSearch = (q: string) => {
     setSearch(q)
-    if (tab === 'all') loadBookings('all', q)
+    if (tab === 'all' || tab === 'archived') loadBookings(tab, q)
   }
 
   const handleBookingCreated = (booking: Booking) => {
@@ -277,14 +286,9 @@ export default function BookingsPage() {
   }
 
   const handleAction = (booking: Booking, action: string) => {
-    if (action === 'check_in' && !booking.room_id) {
-      setDialog({
-        title: t('bookings.dialog.noRoomTitle'),
-        message: t('bookings.dialog.noRoomMessage'),
-        confirmLabel: t('bookings.dialog.noRoomConfirm'),
-        cancelLabel: t('common.close'),
-        onConfirm: () => { setDialog(null); setEditTarget(booking) },
-      })
+    if (action === 'check_in') {
+      setDetailBooking(null)
+      setCheckInTarget(booking)
       return
     }
     if (action === 'cancel') {
@@ -308,6 +312,52 @@ export default function BookingsPage() {
     setBookings((prev) => prev.map((b) => b.id === updated.id ? updated : b))
     setPaymentTarget(null)
     showToast(t('bookings.toast.paymentSaved'))
+  }
+
+  const handleStatusChanged = (updated: Booking) => {
+    setBookings((prev) => prev.map((b) => b.id === updated.id ? updated : b))
+    setDetailBooking(updated)
+    if (tab === 'calendar') loadCalendar(monthStart)
+    if (updated.status === 'CANCELLED') {
+      setUndoAction({
+        label: `Đã hủy đặt phòng #${updated.id} — ${updated.guest_name}`,
+        onUndo: async () => {
+          const restored = await bookingsApi.restore(updated.id)
+          setBookings((prev) => prev.map((b) => b.id === restored.id ? restored : b))
+          setDetailBooking(restored)
+        },
+      })
+    }
+  }
+
+  const handleArchived = (updated: Booking) => {
+    setBookings((prev) => prev.filter((b) => b.id !== updated.id))
+    setDetailBooking(null)
+    setUndoAction({
+      label: `Đã lưu trữ đặt phòng #${updated.id} — ${updated.guest_name}`,
+      onUndo: async () => {
+        const restored = await bookingsApi.restore(updated.id)
+        if (tab !== 'archived') setBookings((prev) => [restored, ...prev])
+        setDetailBooking(restored)
+      },
+    })
+  }
+
+  const handleRestored = (updated: Booking) => {
+    if (tab === 'archived') {
+      setBookings((prev) => prev.filter((b) => b.id !== updated.id))
+    } else {
+      setBookings((prev) => [updated, ...prev.filter((b) => b.id !== updated.id)])
+    }
+    setDetailBooking(updated)
+    setUndoAction({
+      label: `Đã khôi phục đặt phòng #${updated.id} — ${updated.guest_name}`,
+      onUndo: async () => {
+        const archived = await bookingsApi.archive(updated.id)
+        setBookings((prev) => prev.filter((b) => b.id !== archived.id))
+        setDetailBooking(null)
+      },
+    })
   }
 
   const prevMonth = () => {
@@ -348,15 +398,20 @@ export default function BookingsPage() {
               </p>
             )}
           </div>
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4" />
-            {t('bookings.newBooking')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowWalkIn(true)}>
+              Walk-in
+            </Button>
+            <Button onClick={() => setShowForm(true)}>
+              <Plus className="h-4 w-4" />
+              {t('bookings.newBooking')}
+            </Button>
+          </div>
         </div>
 
         <div className="mb-6 flex flex-wrap items-center gap-4">
           <div className="inline-flex w-fit gap-1 rounded-lg bg-muted p-1">
-            {(['today', 'all', 'calendar'] as Tab[]).map((tabKey) => (
+            {(['today', 'all', 'archived', 'calendar'] as Tab[]).map((tabKey) => (
               <button
                 key={tabKey}
                 onClick={() => switchTab(tabKey)}
@@ -371,12 +426,14 @@ export default function BookingsPage() {
                   ? t('bookings.tabs.today')
                   : tabKey === 'all'
                   ? t('bookings.tabs.all')
+                  : tabKey === 'archived'
+                  ? 'Lưu trữ'
                   : t('bookings.tabs.calendar')}
               </button>
             ))}
           </div>
 
-          {tab === 'all' && (
+          {(tab === 'all' || tab === 'archived') && (
             <div className="relative w-full sm:w-64">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -463,7 +520,7 @@ export default function BookingsPage() {
                           <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(b.check_in_date)}</TableCell>
                           <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(b.check_out_date)}</TableCell>
                           <TableCell className="text-muted-foreground">{t(`ota.${b.ota_source}` as any)}</TableCell>
-                          <TableCell><StatusBadge status={b.status} /></TableCell>
+                          <TableCell><BookingStatusBadge status={b.status} /></TableCell>
                           <TableCell className="whitespace-nowrap font-medium text-foreground">{formatVND(b.total_price)}</TableCell>
                           <TableCell className="whitespace-nowrap"><PaymentCell outstanding={outstanding} /></TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
@@ -551,7 +608,7 @@ export default function BookingsPage() {
                             </span>
                           )}
                         </span>
-                        <StatusBadge status={b.status} />
+                        <BookingStatusBadge status={b.status} />
                       </div>
                       <p className="font-medium text-foreground">{b.guest_name}</p>
                       {b.guest_phone && <p className="text-xs text-muted-foreground">{b.guest_phone}</p>}
@@ -614,7 +671,7 @@ export default function BookingsPage() {
                 })}
               </div>
 
-              {tab === 'all' && hasMore && (
+              {(tab === 'all' || tab === 'archived') && hasMore && (
                 <div className="mt-4 flex justify-center">
                   <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
                     {loadingMore ? t('bookings.loading') : t('bookings.loadMore')}
@@ -629,10 +686,47 @@ export default function BookingsPage() {
       {detailBooking && (
         <BookingDetailModal
           booking={detailBooking}
+          rooms={rooms}
           onClose={() => setDetailBooking(null)}
           onEdit={(b) => { setDetailBooking(null); setEditTarget(b) }}
           onAction={(b, action) => { setDetailBooking(null); handleAction(b, action) }}
           onPay={(b) => { setDetailBooking(null); setPaymentTarget(b) }}
+          onStatusChanged={handleStatusChanged}
+          onArchived={handleArchived}
+          onRestored={handleRestored}
+        />
+      )}
+
+      {undoAction && (
+        <UndoToast
+          action={undoAction}
+          onDismiss={() => setUndoAction(null)}
+        />
+      )}
+
+      {showWalkIn && (
+        <WalkInWizard
+          onComplete={(booking) => {
+            setBookings((prev) => [booking, ...prev])
+            setShowWalkIn(false)
+            if (tab === 'calendar') loadCalendar(monthStart)
+            showToast('Nhận phòng walk-in thành công')
+          }}
+          onClose={() => setShowWalkIn(false)}
+        />
+      )}
+
+      {checkInTarget && (
+        <CheckInWizard
+          booking={checkInTarget}
+          rooms={rooms}
+          onComplete={(updated) => {
+            setBookings((prev) => prev.map((b) => b.id === updated.id ? updated : b))
+            setCheckInTarget(null)
+            if (tab === 'calendar') loadCalendar(monthStart)
+            showToast(t('bookings.toast.checkInSuccess'))
+          }}
+          onClose={() => setCheckInTarget(null)}
         />
       )}
 

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Menu, House } from 'lucide-react'
 import Sidebar from './Sidebar'
+import FloatingActionButton from '@/components/ui/FloatingActionButton'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -50,6 +51,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+      <FloatingActionButton />
     </div>
   )
 }

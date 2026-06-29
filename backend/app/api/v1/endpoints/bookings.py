@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,21 +6,24 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_admin_or_above
 from app.models.bike_rental import BikeRental as BikeRentalModel
 from app.models.booking import Booking
-from app.models.enums import BikeRentalStatus, BikeStatus, BookingStatus, RoomStatus, UserRole
+from app.models.booking_log import BookingLog
+from app.models.enums import BikeRentalStatus, BikeStatus, BookingStatus, OTASource, PaymentMethod, RoomStatus, UserRole
 from app.models.guest import Guest
 from app.models.payment import Payment
 from app.models.room import Room
 from app.models.user import User
 from app.schemas.booking import (
     BookingCreate,
+    BookingLogOut,
     BookingOut,
     BookingStatusUpdate,
     BookingUpdate,
     CalendarBooking,
     LateCheckoutSurcharge,
+    WalkInCreate,
 )
 from app.schemas.payment import PaymentCreate, PaymentOut
 
@@ -28,6 +31,10 @@ router = APIRouter()
 
 # Valid status transitions: current_status → { action → new_status }
 _TRANSITIONS: dict[BookingStatus, dict[str, BookingStatus]] = {
+    BookingStatus.PENDING: {
+        "confirm": BookingStatus.CONFIRMED,
+        "cancel":  BookingStatus.CANCELLED,
+    },
     BookingStatus.CONFIRMED: {
         "check_in": BookingStatus.CHECKED_IN,
         "cancel":   BookingStatus.CANCELLED,
@@ -63,6 +70,8 @@ def _to_booking_out(b: Booking) -> BookingOut:
         total_price=b.total_price,
         collected_amount=b.collected_amount,
         notes=b.notes,
+        is_archived=b.is_archived,
+        archived_at=b.archived_at,
     )
 
 
@@ -93,6 +102,41 @@ def _find_or_create_guest(
     return guest
 
 
+def _find_available_rooms(
+    db: Session,
+    check_in: date,
+    check_out: date,
+    exclude_room_id: int,
+    limit: int = 3,
+) -> list[dict]:
+    from sqlalchemy import select
+    conflicting_ids = (
+        select(Booking.room_id)
+        .where(
+            Booking.status.in_(_ACTIVE),
+            Booking.check_in_date < check_out,
+            Booking.check_out_date > check_in,
+            Booking.room_id.isnot(None),
+        )
+    )
+    available = (
+        db.query(Room)
+        .filter(Room.id != exclude_room_id, ~Room.id.in_(conflicting_ids))
+        .order_by(Room.room_number)
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "room_id": r.id,
+            "room_number": r.room_number,
+            "room_type": r.room_type.value,
+            "base_price": str(r.base_price),
+        }
+        for r in available
+    ]
+
+
 def _check_room_availability(
     db: Session,
     room_id: int,
@@ -112,14 +156,29 @@ def _check_room_availability(
     if exclude_booking_id:
         q = q.filter(Booking.id != exclude_booking_id)
     conflict = q.first()
-    if conflict:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"Phòng đã có đặt từ {conflict.check_in_date} đến {conflict.check_out_date} "
-                f"(đặt phòng #{conflict.id})"
+    if not conflict:
+        return
+
+    room = db.get(Room, room_id)
+    room_label = f"Phòng {room.room_number}" if room else f"phòng #{room_id}"
+    suggestions = _find_available_rooms(db, check_in, check_out, room_id)
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "type": "ROOM_CONFLICT",
+            "message": (
+                f"{room_label} đã có đặt từ {conflict.check_in_date} "
+                f"đến {conflict.check_out_date}"
             ),
-        )
+            "conflict": {
+                "booking_id": conflict.id,
+                "guest_name": conflict.guest.full_name if conflict.guest else "—",
+                "check_in_date": str(conflict.check_in_date),
+                "check_out_date": str(conflict.check_out_date),
+            },
+            "suggestions": suggestions,
+        },
+    )
 
 
 def _recalculate_collected(db: Session, booking: Booking) -> None:
@@ -131,12 +190,17 @@ def _recalculate_collected(db: Session, booking: Booking) -> None:
     booking.collected_amount = total
 
 
+def _log(db: Session, booking_id: int, user_id: int | None, action: str, description: str) -> None:
+    db.add(BookingLog(booking_id=booking_id, user_id=user_id, action=action, description=description))
+
+
 @router.get("/", response_model=list[BookingOut])
 def list_bookings(
     booking_status: BookingStatus | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
     search: str | None = None,
+    archived: bool = False,
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -147,6 +211,7 @@ def list_bookings(
     offset = max(0, offset)
 
     q = db.query(Booking).join(Booking.guest)
+    q = q.filter(Booking.is_archived == archived)
     if booking_status:
         q = q.filter(Booking.status == booking_status)
     if start_date:
@@ -251,8 +316,15 @@ def create_booking(
     db.add(booking)
     db.flush()
 
+    room_label = f"phòng {body.room_id}" if body.room_id else "chưa xếp phòng"
+    _log(
+        db, booking.id, current_user.id, "CREATED",
+        f"Đặt phòng được tạo — {body.guest_name}, {room_label}, "
+        f"{body.check_in_date} → {body.check_out_date}, "
+        f"{int(body.total_price):,} VND",
+    )
+
     if body.deposit_amount > 0:
-        from app.models.enums import PaymentMethod
         deposit = Payment(
             booking_id=booking.id,
             amount=body.deposit_amount,
@@ -263,6 +335,89 @@ def create_booking(
         db.add(deposit)
         db.flush()
         _recalculate_collected(db, booking)
+        _log(
+            db, booking.id, current_user.id, "PAYMENT",
+            f"Đặt cọc {int(body.deposit_amount):,} VND — Tiền mặt",
+        )
+
+    db.commit()
+    db.refresh(booking)
+    return _to_booking_out(booking)
+
+
+@router.post("/walk-in", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
+def walk_in_booking(
+    body: WalkInCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a booking and immediately check the guest in — single atomic walk-in flow."""
+    if body.check_out_date <= body.check_in_date:
+        raise HTTPException(status_code=400, detail="Ngày trả phòng phải sau ngày nhận phòng")
+
+    room = db.get(Room, body.room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Phòng không tồn tại")
+
+    # Availability check — raises structured 409 if room is taken
+    _check_room_availability(db, body.room_id, body.check_in_date, body.check_out_date)
+
+    guest = _find_or_create_guest(
+        db, body.guest_name, body.guest_phone,
+        id_type=body.guest_id_type, id_number=body.guest_id_number,
+    )
+
+    # Create booking directly as CONFIRMED (skip PENDING for walk-ins)
+    booking = Booking(
+        room_id=body.room_id,
+        guest_id=guest.id,
+        check_in_date=body.check_in_date,
+        check_out_date=body.check_out_date,
+        num_guests=body.num_guests,
+        ota_source=OTASource.DIRECT,
+        status=BookingStatus.CONFIRMED,
+        total_price=body.total_price,
+        collected_amount=Decimal("0"),
+        notes=body.notes,
+        created_by_id=current_user.id,
+    )
+    db.add(booking)
+    db.flush()
+
+    _log(
+        db, booking.id, current_user.id, "CREATED",
+        f"Walk-in — {body.guest_name}, Phòng {room.room_number}, "
+        f"{body.check_in_date} → {body.check_out_date}, "
+        f"{int(body.total_price):,} VND",
+    )
+
+    # Record payment if provided
+    if body.deposit_amount > 0:
+        try:
+            pay_method = PaymentMethod(body.payment_method)
+        except ValueError:
+            pay_method = PaymentMethod.CASH
+        payment = Payment(
+            booking_id=booking.id,
+            amount=body.deposit_amount,
+            method=pay_method,
+            notes="Thu khi nhận phòng (walk-in)",
+            recorded_by_id=current_user.id,
+        )
+        db.add(payment)
+        db.flush()
+        _recalculate_collected(db, booking)
+        _log(
+            db, booking.id, current_user.id, "PAYMENT",
+            f"Thu {int(body.deposit_amount):,} VND — {pay_method.value}",
+        )
+
+    # Check in: CONFIRMED → CHECKED_IN
+    booking.status = BookingStatus.CHECKED_IN
+    _log(
+        db, booking.id, current_user.id, "STATUS_CHANGED",
+        f"Nhận phòng (walk-in) — CONFIRMED → CHECKED_IN — Phòng {room.room_number}",
+    )
 
     db.commit()
     db.refresh(booking)
@@ -349,6 +504,8 @@ def update_booking(
         if body.guest_id_number is not None:
             guest.id_number = body.guest_id_number
 
+    _log(db, booking_id, current_user.id, "UPDATED", "Cập nhật thông tin đặt phòng")
+
     db.commit()
     db.refresh(booking)
     return _to_booking_out(booking)
@@ -359,7 +516,7 @@ def update_booking_status(
     booking_id: int,
     body: BookingStatusUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     booking = db.get(Booking, booking_id)
     if not booking:
@@ -388,6 +545,7 @@ def update_booking_status(
             _check_room_availability(db, body.room_id, booking.check_in_date, booking.check_out_date, exclude_booking_id=booking_id)
             booking.room_id = body.room_id
 
+    old_status = booking.status
     booking.status = new_status
 
     if new_status == BookingStatus.CHECKED_OUT:
@@ -411,6 +569,79 @@ def update_booking_status(
                 if not other_active:
                     br.bike.status = BikeStatus.AVAILABLE
 
+    _TRANSITION_LABELS: dict[str, str] = {
+        "confirm":   "Xác nhận đặt phòng",
+        "check_in":  "Nhận phòng",
+        "check_out": "Trả phòng",
+        "cancel":    "Hủy đặt phòng",
+        "no_show":   "No-show",
+    }
+    label = _TRANSITION_LABELS.get(body.action, body.action)
+    reason_suffix = f" — Lý do: {body.reason}" if body.reason else ""
+    _log(
+        db, booking_id, current_user.id, "STATUS_CHANGED",
+        f"{label} — {old_status.value} → {new_status.value}{reason_suffix}",
+    )
+
+    db.commit()
+    db.refresh(booking)
+    return _to_booking_out(booking)
+
+
+@router.post("/{booking_id}/archive", response_model=BookingOut)
+def archive_booking(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_or_above),
+):
+    booking = db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Đặt phòng không tồn tại")
+    if booking.status == BookingStatus.CHECKED_IN:
+        raise HTTPException(status_code=400, detail="Không thể lưu trữ đặt phòng đang có khách ở")
+    if booking.is_archived:
+        raise HTTPException(status_code=400, detail="Đặt phòng đã được lưu trữ")
+
+    booking.is_archived = True
+    booking.archived_at = datetime.now(timezone.utc)
+    booking.archived_by_user_id = current_user.id
+    _log(db, booking_id, current_user.id, "ARCHIVED", "Đặt phòng đã được lưu trữ")
+    db.commit()
+    db.refresh(booking)
+    return _to_booking_out(booking)
+
+
+@router.post("/{booking_id}/restore", response_model=BookingOut)
+def restore_booking(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_or_above),
+):
+    booking = db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Đặt phòng không tồn tại")
+    if not booking.is_archived and booking.status not in [BookingStatus.CANCELLED, BookingStatus.NO_SHOW]:
+        raise HTTPException(
+            status_code=400,
+            detail="Chỉ có thể khôi phục đặt phòng đã lưu trữ hoặc đã hủy/no-show",
+        )
+
+    # Re-run conflict detection before restoring an active room assignment
+    if booking.room_id:
+        _check_room_availability(
+            db, booking.room_id, booking.check_in_date, booking.check_out_date,
+            exclude_booking_id=booking_id,
+        )
+
+    old_status = booking.status
+    booking.is_archived = False
+    booking.archived_at = None
+    booking.archived_by_user_id = None
+    booking.status = BookingStatus.PENDING
+    _log(
+        db, booking_id, current_user.id, "RESTORED",
+        f"Đặt phòng đã được khôi phục — {old_status.value} → PENDING",
+    )
     db.commit()
     db.refresh(booking)
     return _to_booking_out(booking)
@@ -486,6 +717,16 @@ def add_payment(
     db.flush()
 
     _recalculate_collected(db, booking)
+
+    _METHOD_LABELS = {"CASH": "Tiền mặt", "BANK_TRANSFER": "Chuyển khoản", "OTA_COLLECTED": "OTA"}
+    method_label = _METHOD_LABELS.get(str(body.method), str(body.method))
+    if is_refund:
+        _log(db, booking_id, current_user.id, "PAYMENT",
+             f"Hoàn trả {abs(int(body.amount)):,} VND — {method_label}")
+    else:
+        _log(db, booking_id, current_user.id, "PAYMENT",
+             f"Thu {int(body.amount):,} VND — {method_label}")
+
     db.commit()
     db.refresh(booking)
     return _to_booking_out(booking)
@@ -512,6 +753,37 @@ def add_late_checkout_surcharge(
         surcharge_note += f" {body.notes}"
     booking.notes = (booking.notes + "\n" + surcharge_note) if booking.notes else surcharge_note
 
+    desc = f"Phụ thu trả phòng muộn +{int(body.amount):,} VND"
+    if body.notes:
+        desc += f" — {body.notes}"
+    _log(db, booking_id, current_user.id, "SURCHARGE", desc)
+
     db.commit()
     db.refresh(booking)
     return _to_booking_out(booking)
+
+
+@router.get("/{booking_id}/logs", response_model=list[BookingLogOut])
+def get_booking_logs(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_or_above),
+):
+    if not db.get(Booking, booking_id):
+        raise HTTPException(status_code=404, detail="Đặt phòng không tồn tại")
+    logs = (
+        db.query(BookingLog)
+        .filter(BookingLog.booking_id == booking_id)
+        .order_by(BookingLog.created_at.asc())
+        .all()
+    )
+    return [
+        BookingLogOut(
+            id=log.id,
+            action=log.action,
+            description=log.description,
+            created_by_name=log.user.full_name if log.user else None,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ]

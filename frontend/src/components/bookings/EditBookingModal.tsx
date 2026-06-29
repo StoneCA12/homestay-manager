@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { bookingsApi } from '../../services/api'
 import type { Booking, OTASource, Room } from '../../types'
+import { parseConflict, extractErrorMessage, type ConflictDetail } from '../../lib/conflictParser'
+import { resolveRoomWarnings } from '../../lib/bookingWarnings'
+import ConflictAlert from './ConflictAlert'
+import WarningBanner from './WarningBanner'
 
 const OTA_SOURCES: OTASource[] = ['AGODA', 'BOOKING_COM', 'TRAVELOKA', 'ZALO', 'DIRECT']
 const ID_TYPES = ['CCCD', 'CMND', 'PASSPORT']
@@ -46,10 +50,13 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [conflict, setConflict] = useState<ConflictDetail | null>(null)
 
   const set = (k: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setForm((prev) => ({ ...prev, [k]: e.target.value }))
+      if (k === 'room_id' || k === 'check_in_date' || k === 'check_out_date') setConflict(null)
+    }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,8 +78,10 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
         notes: form.notes || undefined,
       })
       onSaved(updated)
-    } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Không thể lưu thay đổi.')
+    } catch (err: unknown) {
+      const parsed = parseConflict(err)
+      if (parsed) { setConflict(parsed); setError('') }
+      else { setError(extractErrorMessage(err)); setConflict(null) }
     } finally {
       setSubmitting(false)
     }
@@ -112,6 +121,12 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
               </select>
             </div>
           </div>
+          {form.room_id && (
+            <WarningBanner
+              warnings={resolveRoomWarnings(rooms.find((r) => r.id === Number(form.room_id)))}
+              key={form.room_id}
+            />
+          )}
 
           {/* Phone + Name */}
           <div className="grid grid-cols-2 gap-4">
@@ -178,9 +193,14 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
             <textarea value={form.notes} onChange={set('notes')} rows={2} className={`${inputCls} resize-none`} />
           </div>
 
-          {error && (
+          {conflict ? (
+            <ConflictAlert
+              conflict={conflict}
+              onSelectRoom={(roomId) => { setForm((f) => ({ ...f, room_id: String(roomId) })); setConflict(null) }}
+            />
+          ) : error ? (
             <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-          )}
+          ) : null}
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
