@@ -12,9 +12,12 @@ from app.models.bike_rental import BikeRental
 from app.models.bike_payment import BikePayment
 from app.models.booking_log import BookingLog
 from app.models.activity_log import ActivityLog
+from app.models.internal_note import InternalNote
+from app.models.daily_snapshot import DailySnapshot
 
 __all__ = [
     "User", "Room", "Guest", "Booking", "HousekeepingLog", "Payment",
     "Expense", "RevokedToken", "CommissionRate",
     "Bike", "BikeRental", "BikePayment", "BookingLog", "ActivityLog",
+    "InternalNote", "DailySnapshot",
 ]

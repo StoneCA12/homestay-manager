@@ -19,5 +19,5 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
-    bookings_created: Mapped[list["Booking"]] = relationship(back_populates="created_by_user")  # noqa: F821
+    bookings_created: Mapped[list["Booking"]] = relationship(back_populates="created_by_user", foreign_keys="[Booking.created_by_id]")  # noqa: F821
     housekeeping_logs: Mapped[list["HousekeepingLog"]] = relationship(back_populates="changed_by_user")  # noqa: F821

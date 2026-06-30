@@ -2,7 +2,8 @@ import axios from 'axios'
 import type {
   ActivityItem, Bike, BikeRental, BikeRentalReport,
   Booking, BookingLog, CalendarBooking, CommissionRate, DailyReport, DailyRevenue,
-  DashboardStats, Expense, GuestLookup, MonthlyRevenue, Payment, Room, SearchResults, User,
+  DashboardStats, EndOfDayReport, Expense, GuestLookup, InternalNote, MonthlyRevenue,
+  NoteCategory, NoteEntityType, Payment, Room, SearchResults, User,
 } from '../types'
 
 const api = axios.create({
@@ -33,6 +34,8 @@ export const roomsApi = {
   list: () => api.get<Room[]>('/rooms/').then((r) => r.data),
   available: (checkInDate: string, checkOutDate: string, roomType?: string) =>
     api.get<Room[]>('/rooms/available', { params: { check_in_date: checkInDate, check_out_date: checkOutDate, room_type: roomType } }).then((r) => r.data),
+  suggest: (checkInDate: string, checkOutDate: string, roomType?: string) =>
+    api.get<Room | null>('/rooms/suggest', { params: { check_in_date: checkInDate, check_out_date: checkOutDate, room_type: roomType } }).then((r) => r.data),
   stats: () => api.get<DashboardStats>('/rooms/stats').then((r) => r.data),
   updateStatus: (roomId: number, toStatus: string, notes?: string) =>
     api.patch(`/housekeeping/${roomId}/status`, { to_status: toStatus, notes }).then((r) => r.data),
@@ -89,6 +92,8 @@ export const bookingsApi = {
     api.get<Payment[]>(`/bookings/${id}/payments`).then((r) => r.data),
   addPayment: (id: number, data: { amount: number; method: string; notes?: string }) =>
     api.post<Booking>(`/bookings/${id}/payments`, data).then((r) => r.data),
+  voidPayment: (bookingId: number, paymentId: number, reason: string) =>
+    api.post<Booking>(`/bookings/${bookingId}/payments/${paymentId}/void`, { reason }).then((r) => r.data),
   addLateCheckout: (id: number, data: { amount: number; notes?: string }) =>
     api.post<Booking>(`/bookings/${id}/late-checkout`, data).then((r) => r.data),
   walkIn: (data: {
@@ -191,5 +196,25 @@ export const usersApi = {
     api.delete(`/users/${userId}`),
   resetPassword: (userId: number, newPassword: string) =>
     api.patch<User>(`/users/${userId}/reset-password`, { new_password: newPassword }).then((r) => r.data),
+}
+
+export const notesApi = {
+  list: (entityType: NoteEntityType, entityId: number) =>
+    api.get<InternalNote[]>('/notes/', { params: { entity_type: entityType, entity_id: entityId } }).then((r) => r.data),
+  create: (data: { entity_type: NoteEntityType; entity_id: number; category: NoteCategory; content: string }) =>
+    api.post<InternalNote>('/notes/', data).then((r) => r.data),
+  latestRoomNotes: (categories = 'HOUSEKEEPING,MAINTENANCE') =>
+    api.get<InternalNote[]>('/notes/rooms/latest', { params: { categories } }).then((r) => r.data),
+}
+
+export const reportsApi = {
+  endOfDay: (reportDate?: string) =>
+    api.get<EndOfDayReport>('/reports/end-of-day', {
+      params: reportDate ? { report_date: reportDate } : undefined,
+    }).then((r) => r.data),
+  generateSnapshot: (reportDate?: string) =>
+    api.post<EndOfDayReport>('/reports/end-of-day/generate', null, {
+      params: reportDate ? { report_date: reportDate } : undefined,
+    }).then((r) => r.data),
 }
 

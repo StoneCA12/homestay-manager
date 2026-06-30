@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import activity, auth, bike_rentals, bookings, expenses, guests, housekeeping, revenue, rooms, search, settings, users
+from app.api.v1.endpoints import activity, auth, bike_rentals, bookings, expenses, guests, housekeeping, notes, reports, revenue, rooms, search, settings, users
 
 router = APIRouter()
 
@@ -16,3 +16,5 @@ router.include_router(settings.router, prefix="/settings", tags=["settings"])
 router.include_router(bike_rentals.router, prefix="/xe-may", tags=["xe-may"])
 router.include_router(activity.router, prefix="/activity", tags=["activity"])
 router.include_router(search.router, prefix="/search", tags=["search"])
+router.include_router(notes.router, prefix="/notes", tags=["notes"])
+router.include_router(reports.router, prefix="/reports", tags=["reports"])

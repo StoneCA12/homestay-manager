@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Banknote, CalendarDays, DoorOpen, FileText, User, X } from 'lucide-react'
-import { bookingsApi, guestsApi } from '../../services/api'
+import { Banknote, CalendarDays, DoorOpen, FileText, Sparkles, User, X } from 'lucide-react'
+import { bookingsApi, guestsApi, roomsApi } from '../../services/api'
 import type { Booking, OTASource, Room } from '../../types'
 import { formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
@@ -99,6 +99,33 @@ export default function BookingFormModal({ rooms, onClose, onCreated, defaultRoo
   const [submitError, setSubmitError] = useState('')
   const [lookingUp, setLookingUp] = useState(false)
   const [autofilled, setAutofilled] = useState(false)
+  const [availableRooms, setAvailableRooms] = useState<Room[]>(rooms)
+  const [suggesting, setSuggesting] = useState(false)
+
+  // Re-fetch available rooms whenever dates change
+  useEffect(() => {
+    if (!form.check_in_date || !form.check_out_date) {
+      setAvailableRooms(rooms)
+      return
+    }
+    roomsApi.available(form.check_in_date, form.check_out_date)
+      .then(setAvailableRooms)
+      .catch(() => setAvailableRooms(rooms))
+  }, [form.check_in_date, form.check_out_date, rooms])
+
+  const handleSuggest = async () => {
+    if (!form.check_in_date || !form.check_out_date) return
+    setSuggesting(true)
+    try {
+      const suggested = await roomsApi.suggest(form.check_in_date, form.check_out_date)
+      if (suggested) {
+        setForm((f) => ({ ...f, room_id: String(suggested.id) }))
+        setConflict(null)
+      }
+    } finally {
+      setSuggesting(false)
+    }
+  }
 
   const nights = useMemo(() => {
     if (!form.check_in_date || !form.check_out_date) return 0
@@ -108,8 +135,8 @@ export default function BookingFormModal({ rooms, onClose, onCreated, defaultRoo
   }, [form.check_in_date, form.check_out_date])
 
   const selectedRoom = useMemo(
-    () => rooms.find((r) => r.id === Number(form.room_id)),
-    [rooms, form.room_id],
+    () => availableRooms.find((r) => r.id === Number(form.room_id)) ?? rooms.find((r) => r.id === Number(form.room_id)),
+    [availableRooms, rooms, form.room_id],
   )
 
   // Auto-fill price when room + dates set and price is still empty
@@ -360,26 +387,47 @@ export default function BookingFormModal({ rooms, onClose, onCreated, defaultRoo
           {/* ── Room ── */}
           {activeTab === 'room' && (
             <div className="space-y-3">
-              <Field label={t('bookingForm.room')}>
-                <select
-                  value={form.room_id}
-                  onChange={set('room_id')}
-                  className={inputCls}
-                >
-                  <option value="">{t('bookingForm.selectRoomOptional')}</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      P.{r.room_number}
-                      {r.display_status === 'OCCUPIED' ? ' 🚫' : ''}
-                      {r.housekeeping_status !== 'AVAILABLE' ? ` (${
-                        r.housekeeping_status === 'DIRTY' ? 'Chưa dọn' :
-                        r.housekeeping_status === 'CLEANING' ? 'Đang dọn' : 'Tạm ngừng'
-                      })` : ''}
-                      {` · ${t(`roomType.${r.room_type}` as any)} · ${formatVND(r.base_price)}/đêm`}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Field label={t('bookingForm.room')}>
+                    <select
+                      value={form.room_id}
+                      onChange={set('room_id')}
+                      className={inputCls}
+                    >
+                      <option value="">
+                        {form.check_in_date && form.check_out_date
+                          ? `-- ${availableRooms.length} phòng trống --`
+                          : t('bookingForm.selectRoomOptional')}
+                      </option>
+                      {availableRooms.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          P.{r.room_number}
+                          {r.housekeeping_status !== 'AVAILABLE' ? ` (${
+                            r.housekeeping_status === 'DIRTY' ? 'Chưa dọn' :
+                            r.housekeeping_status === 'CLEANING' ? 'Đang dọn' : 'Tạm ngừng'
+                          })` : ''}
+                          {r.next_booking_date ? ` · tiếp: ${r.next_booking_date}` : ''}
+                          {` · ${t(`roomType.${r.room_type}` as any)} · ${formatVND(r.base_price)}/đêm`}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                {form.check_in_date && form.check_out_date && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSuggest}
+                    disabled={suggesting}
+                    className="mb-[2px] shrink-0 gap-1.5"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {suggesting ? 'Đang tìm…' : 'Gợi ý'}
+                  </Button>
+                )}
+              </div>
 
               {selectedRoom && (
                 <div className="rounded-xl border bg-muted/20 p-3 text-sm space-y-1">

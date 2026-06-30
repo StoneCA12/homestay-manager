@@ -8,6 +8,19 @@ export type DisplayStatus =
   | 'DIRTY' | 'CLEANING' | 'OUT_OF_ORDER' | 'OVERBOOKING'
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED' | 'NO_SHOW'
 export type BookingAction = 'confirm' | 'check_in' | 'check_out' | 'cancel' | 'no_show'
+export type PaymentState = 'unpaid' | 'deposit_paid' | 'partially_paid' | 'paid' | 'refunded'
+export type NoteCategory = 'RECEPTION' | 'HOUSEKEEPING' | 'MAINTENANCE' | 'OWNER'
+export type NoteEntityType = 'BOOKING' | 'ROOM' | 'GUEST'
+
+export interface InternalNote {
+  id: number
+  entity_type: NoteEntityType
+  entity_id: number
+  category: NoteCategory
+  content: string
+  author_name: string | null
+  created_at: string
+}
 export type OTASource = 'AGODA' | 'BOOKING_COM' | 'TRAVELOKA' | 'ZALO' | 'DIRECT'
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'OTA_COLLECTED'
 export type ExpenseCategory = 'CLEANING' | 'SUPPLIES' | 'OTHER' | 'UTILITIES' | 'SALARIES' | 'MAINTENANCE'
@@ -34,6 +47,7 @@ export interface Room {
   active_bike_names: string[]
   outstanding_balance: string | null
   active_booking_id: number | null
+  next_booking_date: string | null
 }
 
 export interface DashboardStats {
@@ -66,6 +80,7 @@ export interface Booking {
   booking_ref: string | null
   room_id: number | null
   room_number: string | null
+  guest_id: number
   guest_name: string
   guest_phone: string | null
   guest_id_type: string | null
@@ -77,6 +92,7 @@ export interface Booking {
   status: BookingStatus
   total_price: string
   collected_amount: string
+  payment_state: PaymentState
   notes: string | null
   is_archived: boolean
   archived_at: string | null
@@ -335,4 +351,78 @@ export interface DailyReport {
   housekeeping: HousekeepingSummary
   bike_returns_today: BikeReturnRow[]
   active_bike_count: number
+}
+
+// End-of-Day Report (Issue #21)
+export interface EodBookingRow {
+  id: number
+  room_number: string | null
+  guest_name: string
+  check_in_date: string
+  check_out_date: string
+  total_price: string
+  collected_amount: string
+  status: BookingStatus
+  ota_source: OTASource
+}
+
+export interface EodPaymentRow {
+  id: number
+  booking_id: number
+  guest_name: string
+  room_number: string | null
+  amount: string
+  method: PaymentMethod
+  paid_at: string
+  recorded_by: string | null
+}
+
+export interface EodRevenueByMethod {
+  cash: string
+  bank_transfer: string
+  ota_collected: string
+  total: string
+}
+
+export interface EodRoomCleaned {
+  room_number: string
+  cleaned_by: string | null
+  cleaned_at: string
+}
+
+export interface EodBikeActivity {
+  bike_name: string
+  plate_number: string | null
+  room_number: string | null
+  guest_name: string
+}
+
+export interface EodOutstanding {
+  booking_id: number
+  room_number: string | null
+  guest_name: string
+  outstanding: string
+  check_out_date: string
+}
+
+export interface EndOfDayReport {
+  report_date: string
+  generated_at: string
+  is_snapshot: boolean
+  arrivals_on_time: EodBookingRow[]
+  arrivals_late: EodBookingRow[]
+  arrivals_no_show: EodBookingRow[]
+  departures_on_time: EodBookingRow[]
+  departures_late: EodBookingRow[]
+  revenue: EodRevenueByMethod
+  payments: EodPaymentRow[]
+  rooms_cleaned: EodRoomCleaned[]
+  bikes_assigned: EodBikeActivity[]
+  bikes_returned: EodBikeActivity[]
+  total_rooms: number
+  occupied_tonight: number
+  outstanding_balances: EodOutstanding[]
+  bookings_created_count: number
+  bookings_cancelled_count: number
+  bookings_modified_count: number
 }

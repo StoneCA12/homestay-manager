@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, X } from 'lucide-react'
-import type { Booking, Room, RoomType } from '../../types'
+import type { Booking, Room } from '../../types'
 import { bookingsApi, guestsApi, roomsApi } from '../../services/api'
 import { formatDate, formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
@@ -398,13 +398,13 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
 
               {/* Summary */}
               <div className="rounded-xl border bg-muted/20 p-3 text-sm space-y-1.5">
-                {(([
+                {[
                   ['Phòng', `P.${selectedRoom.room_number} · ${selectedRoom.room_type}`],
                   ['Nhận phòng', formatDate(checkIn)],
                   ['Trả phòng', formatDate(checkOut)],
                   ['Số đêm', String(nights)],
                   ['Khách', guestName],
-                ] as [string, string][]).map(([label, value]) => (
+                ].map(([label, value]) => (
                   <div key={label} className="flex justify-between">
                     <span className="text-muted-foreground">{label}</span>
                     <span className="font-medium text-foreground">{value}</span>
@@ -439,10 +439,32 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
             </div>
           )}
 
-          {/* ── Step 4: Payment ── */}
+          {/* ── Step 4: Confirm & Payment ── */}
           {step === 4 && (
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-foreground">Thu tiền</h3>
+              <h3 className="text-sm font-semibold text-foreground">Xác nhận và thu tiền</h3>
+
+              {/* Booking confirmation summary */}
+              {selectedRoom && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-1.5 text-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-2">Xác nhận nhận phòng</p>
+                  {([
+                    ['Phòng', `P.${selectedRoom.room_number} · ${selectedRoom.room_type} · Tầng ${selectedRoom.floor}`],
+                    ['Khách', guestName],
+                    phone ? ['Điện thoại', phone] : null,
+                    ['Nhận phòng', formatDate(checkIn)],
+                    ['Trả phòng', `${formatDate(checkOut)} (${nights} đêm)`],
+                    ['Tổng tiền', formatVND(totalPrice)],
+                  ] as ([string, string] | null)[])
+                    .filter((x): x is [string, string] => x !== null)
+                    .map(([label, value]) => (
+                      <div key={label} className="flex justify-between">
+                        <span className="text-muted-foreground">{label}</span>
+                        <span className="font-medium text-foreground">{value}</span>
+                      </div>
+                    ))}
+                </div>
+              )}
 
               <div className="rounded-xl border bg-muted/30 p-3 text-sm space-y-1.5">
                 <div className="flex justify-between">
@@ -499,18 +521,19 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
               </div>
 
               <div className="rounded-xl border bg-card p-4 space-y-2 text-sm">
-                {(([
-                  ['Mã đặt phòng', `#${completedBooking.id}`],
-                  ['Khách', completedBooking.guest_name],
-                  completedBooking.guest_phone ? ['Điện thoại', completedBooking.guest_phone] : null,
-                  ['Phòng', `${completedBooking.room_number}`],
-                  ['Nhận phòng', formatDate(completedBooking.check_in_date)],
-                  ['Trả phòng', formatDate(completedBooking.check_out_date)],
-                  ['Số đêm', String(nightCount(completedBooking.check_in_date, completedBooking.check_out_date))],
-                  ['Tổng tiền', formatVND(completedBooking.total_price)],
-                  ['Đã thu', formatVND(completedBooking.collected_amount)],
-                ] as ([string, string] | null)[])
-                  .filter((x): x is [string, string] => x !== null)
+                {(
+                  [
+                    ['Mã đặt phòng', `#${completedBooking.id}`],
+                    ['Khách', completedBooking.guest_name],
+                    completedBooking.guest_phone ? ['Điện thoại', completedBooking.guest_phone] : null,
+                    ['Phòng', `${completedBooking.room_number}`],
+                    ['Nhận phòng', formatDate(completedBooking.check_in_date)],
+                    ['Trả phòng', formatDate(completedBooking.check_out_date)],
+                    ['Số đêm', String(nightCount(completedBooking.check_in_date, completedBooking.check_out_date))],
+                    ['Tổng tiền', formatVND(completedBooking.total_price)],
+                    ['Đã thu', formatVND(completedBooking.collected_amount)],
+                  ] as ([string, string] | null)[]
+                ).filter((x): x is [string, string] => x !== null)
                   .map(([label, value]) => (
                     <Fragment key={label}>
                       <div className="flex justify-between">

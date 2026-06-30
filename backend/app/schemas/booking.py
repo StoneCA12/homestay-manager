@@ -7,6 +7,20 @@ from pydantic import BaseModel, Field
 from app.models.enums import BookingStatus, OTASource
 
 BookingAction = Literal["confirm", "check_in", "check_out", "cancel", "no_show"]
+PaymentState = Literal["unpaid", "deposit_paid", "partially_paid", "paid", "refunded"]
+
+
+def compute_payment_state(total: Decimal, collected: Decimal, payment_count: int) -> PaymentState:
+    """Derive payment state purely from totals — never manually settable."""
+    if payment_count > 0 and collected <= 0:
+        return "refunded"
+    if collected <= 0:
+        return "unpaid"
+    if collected >= total:
+        return "paid"
+    if payment_count == 1:
+        return "deposit_paid"
+    return "partially_paid"
 
 
 class BookingOut(BaseModel):
@@ -14,6 +28,7 @@ class BookingOut(BaseModel):
     booking_ref: str | None
     room_id: int | None
     room_number: str | None
+    guest_id: int
     guest_name: str
     guest_phone: str | None
     guest_id_type: str | None
@@ -25,6 +40,7 @@ class BookingOut(BaseModel):
     status: BookingStatus
     total_price: Decimal
     collected_amount: Decimal
+    payment_state: PaymentState = "unpaid"
     notes: str | None
     is_archived: bool
     archived_at: datetime | None

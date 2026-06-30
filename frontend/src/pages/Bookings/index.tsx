@@ -16,7 +16,7 @@ import Layout from '../../components/layout/Layout'
 import { bookingsApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import type { Booking, CalendarBooking, Room } from '../../types'
+import type { Booking, CalendarBooking, PaymentState, Room } from '../../types'
 import { formatDate, formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -137,16 +137,34 @@ function ConfirmDialog({ dialog, onCancel }: { dialog: DialogState; onCancel: ()
   )
 }
 
-function PaymentCell({ outstanding }: { outstanding: number }) {
-  const { t } = useTranslation()
-  return outstanding > 0 ? (
-    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-600">
-      Còn {formatVND(outstanding)}
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-600">
-      <Check className="h-3 w-3" /> {t('bookings.paid')}
-    </span>
+const PAYMENT_STATE_LABEL: Record<PaymentState, string> = {
+  unpaid:         'Chưa trả',
+  deposit_paid:   'Đã cọc',
+  partially_paid: 'Một phần',
+  paid:           'Đã trả đủ',
+  refunded:       'Hoàn tiền',
+}
+const PAYMENT_STATE_CLS: Record<PaymentState, string> = {
+  unpaid:         'bg-red-50 text-red-600',
+  deposit_paid:   'bg-amber-50 text-amber-700',
+  partially_paid: 'bg-yellow-50 text-yellow-700',
+  paid:           'bg-emerald-50 text-emerald-600',
+  refunded:       'bg-muted text-muted-foreground',
+}
+
+function PaymentCell({ outstanding, paymentState }: { outstanding: number; paymentState?: PaymentState }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      {paymentState && (
+        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold', PAYMENT_STATE_CLS[paymentState])}>
+          {paymentState === 'paid' && <Check className="mr-1 h-3 w-3" />}
+          {PAYMENT_STATE_LABEL[paymentState]}
+        </span>
+      )}
+      {outstanding > 0 && (
+        <span className="text-xs text-red-600 font-medium">Còn {formatVND(outstanding)}</span>
+      )}
+    </div>
   )
 }
 
@@ -640,7 +658,7 @@ export default function BookingsPage() {
                           <TableCell className="text-muted-foreground">{t(`ota.${b.ota_source}` as any)}</TableCell>
                           <TableCell><BookingStatusBadge status={b.status} /></TableCell>
                           <TableCell className="whitespace-nowrap font-medium text-foreground">{formatVND(b.total_price)}</TableCell>
-                          <TableCell className="whitespace-nowrap"><PaymentCell outstanding={outstanding} /></TableCell>
+                          <TableCell className="whitespace-nowrap"><PaymentCell outstanding={outstanding} paymentState={b.payment_state} /></TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
                               {b.status === 'CONFIRMED' && (
@@ -740,7 +758,7 @@ export default function BookingsPage() {
                         <span className="ml-2 text-muted-foreground/70">{t(`ota.${b.ota_source}` as any)}</span>
                       </p>
                       <div className="mt-2.5 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
-                        <PaymentCell outstanding={outstanding} />
+                        <PaymentCell outstanding={outstanding} paymentState={b.payment_state} />
                         <div className="flex items-center gap-2">
                           {b.status === 'CONFIRMED' && (
                             <Button

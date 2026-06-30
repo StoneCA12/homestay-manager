@@ -8,6 +8,7 @@ import HousekeepingPage from './pages/Housekeeping'
 import RevenuePage from './pages/Revenue'
 import SettingsPage from './pages/Settings'
 import ActivityPage from './pages/Activity'
+import EndOfDayPage from './pages/Reports/EndOfDay'
 import LoginPage from './pages/Login'
 import type { UserRole } from './types'
 
@@ -71,6 +72,10 @@ export default function App() {
       <Route
         path="/hoat-dong"
         element={<ProtectedRoute><ActivityPage /></ProtectedRoute>}
+      />
+      <Route
+        path="/reports"
+        element={<ProtectedRoute><EndOfDayPage /></ProtectedRoute>}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

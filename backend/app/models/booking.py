@@ -46,6 +46,6 @@ class Booking(Base):
 
     room: Mapped["Room | None"] = relationship(back_populates="bookings")  # noqa: F821
     guest: Mapped["Guest"] = relationship(back_populates="bookings")  # noqa: F821
-    created_by_user: Mapped["User | None"] = relationship(back_populates="bookings_created", passive_deletes=True)  # noqa: F821
+    created_by_user: Mapped["User | None"] = relationship(back_populates="bookings_created", passive_deletes=True, foreign_keys=[created_by_id])  # noqa: F821
     payments: Mapped[list["Payment"]] = relationship(back_populates="booking", cascade="all, delete-orphan")  # noqa: F821
     bike_rentals: Mapped[list["BikeRental"]] = relationship(back_populates="booking", cascade="all, delete-orphan")  # noqa: F821

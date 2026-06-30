@@ -22,3 +22,7 @@ class PaymentCreate(BaseModel):
     amount: Decimal = Field(description="Payment amount in VND")
     method: PaymentMethod
     notes: str | None = None
+
+
+class PaymentVoid(BaseModel):
+    reason: str = Field(min_length=1, max_length=300, description="Reason for voiding this payment")

@@ -196,6 +196,23 @@ def dashboard_stats(
     )
 
 
+def _next_booking_dates(db: Session, room_ids: list[int], after: date) -> dict[int, date]:
+    """Return {room_id: earliest future check-in on or after `after`} for the given room ids."""
+    if not room_ids:
+        return {}
+    rows = (
+        db.query(Booking.room_id, func.min(Booking.check_in_date))
+        .filter(
+            Booking.room_id.in_(room_ids),
+            Booking.status.in_(_ACTIVE),
+            Booking.check_in_date >= after,
+        )
+        .group_by(Booking.room_id)
+        .all()
+    )
+    return {rid: d for rid, d in rows if d is not None}
+
+
 @router.get("/available", response_model=list[RoomOut])
 def available_rooms(
     check_in_date: date,
@@ -204,7 +221,7 @@ def available_rooms(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Return rooms that have no active booking overlapping the given date range."""
+    """Return rooms with no booking overlap for the given range, including next reservation date."""
     if check_out_date <= check_in_date:
         raise HTTPException(status_code=400, detail="Ngày trả phòng phải sau ngày nhận phòng")
 
@@ -226,6 +243,9 @@ def available_rooms(
             pass
 
     rooms = q.order_by(Room.room_number).all()
+    room_ids = [r.id for r in rooms]
+    next_dates = _next_booking_dates(db, room_ids, check_out_date)
+
     return [
         RoomOut(
             id=r.id,
@@ -236,9 +256,73 @@ def available_rooms(
             base_price=r.base_price,
             housekeeping_status=r.housekeeping_status,
             display_status=_HK_TO_DISPLAY.get(r.housekeeping_status, DisplayStatus.AVAILABLE),
+            next_booking_date=next_dates.get(r.id),
         )
         for r in rooms
     ]
+
+
+@router.get("/suggest", response_model=RoomOut | None)
+def suggest_room(
+    check_in_date: date,
+    check_out_date: date,
+    room_type: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Return the single best available room: cleaned, same type preferred, next reservation furthest away."""
+    if check_out_date <= check_in_date:
+        raise HTTPException(status_code=400, detail="Ngày trả phòng phải sau ngày nhận phòng")
+
+    conflicting_ids = (
+        select(Booking.room_id)
+        .where(
+            Booking.status.in_(_ACTIVE),
+            Booking.check_in_date < check_out_date,
+            Booking.check_out_date > check_in_date,
+            Booking.room_id.isnot(None),
+        )
+    )
+
+    candidates = (
+        db.query(Room)
+        .filter(~Room.id.in_(conflicting_ids))
+        .order_by(Room.room_number)
+        .all()
+    )
+    if not candidates:
+        return None
+
+    next_dates = _next_booking_dates(db, [r.id for r in candidates], check_out_date)
+
+    parsed_type: RoomType | None = None
+    if room_type:
+        try:
+            parsed_type = RoomType(room_type)
+        except ValueError:
+            pass
+
+    def _score(r: Room) -> tuple:
+        type_match = 0 if (parsed_type and r.room_type == parsed_type) else 1
+        ready = 0 if r.housekeeping_status == RoomStatus.AVAILABLE else 1
+        # Rooms with no upcoming booking score best (far future); use a far date as sentinel
+        nbd = next_dates.get(r.id)
+        next_gap = -nbd.toordinal() if nbd else 1  # negative ordinal → later date = lower value = better
+        return (type_match, ready, next_gap)
+
+    best = min(candidates, key=_score)
+    nbd = next_dates.get(best.id)
+    return RoomOut(
+        id=best.id,
+        room_number=best.room_number,
+        room_type=best.room_type,
+        floor=best.floor,
+        capacity=best.capacity,
+        base_price=best.base_price,
+        housekeeping_status=best.housekeeping_status,
+        display_status=_HK_TO_DISPLAY.get(best.housekeeping_status, DisplayStatus.AVAILABLE),
+        next_booking_date=nbd,
+    )
 
 
 @router.post("/", response_model=RoomOut, status_code=201)

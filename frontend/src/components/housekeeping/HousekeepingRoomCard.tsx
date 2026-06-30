@@ -1,8 +1,22 @@
-import { Bike, Eye, Plus } from 'lucide-react'
+import { Bike, Eye, MessageSquarePlus, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Room, RoomStatus } from '../../types'
+import type { InternalNote, Room, RoomStatus } from '../../types'
 import { formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
+
+const NOTE_CATEGORY_LABEL: Record<string, string> = {
+  HOUSEKEEPING: 'Dọn phòng',
+  MAINTENANCE: 'Bảo trì',
+  RECEPTION: 'Lễ tân',
+  OWNER: 'Chủ nhà',
+}
+
+const NOTE_CATEGORY_COLOR: Record<string, string> = {
+  HOUSEKEEPING: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  MAINTENANCE: 'text-orange-700 bg-orange-50 border-orange-200',
+  RECEPTION: 'text-blue-700 bg-blue-50 border-blue-200',
+  OWNER: 'text-purple-700 bg-purple-50 border-purple-200',
+}
 
 // ── Status config keyed on housekeeping_status (for the summary cards export) ─
 export const STATUS_CONFIG: Record<RoomStatus, { bg: string; border: string; badge: string }> = {
@@ -39,17 +53,21 @@ function fmtDate(iso: string): string {
 interface Props {
   room: Room
   updating: boolean
+  latestNote?: InternalNote | null
   onStatusChange: (room: Room, next: RoomStatus) => void
   onViewBooking?: (bookingId: number) => void
   onAssignGuest?: (room: Room) => void
+  onAddNote?: (room: Room) => void
 }
 
 export default function HousekeepingRoomCard({
   room,
   updating,
+  latestNote,
   onStatusChange,
   onViewBooking,
   onAssignGuest,
+  onAddNote,
 }: Props) {
   const { t } = useTranslation()
   const cfg = DISPLAY_CONFIG[room.display_status] ?? DISPLAY_CONFIG.AVAILABLE
@@ -103,6 +121,14 @@ export default function HousekeepingRoomCard({
         </div>
       )}
 
+      {/* ── Latest HK/Maintenance note ── */}
+      {latestNote && (
+        <div className={cn('rounded-lg border px-2.5 py-2 text-xs', NOTE_CATEGORY_COLOR[latestNote.category] ?? 'bg-muted border-border text-foreground')}>
+          <p className="font-semibold leading-none mb-1">{NOTE_CATEGORY_LABEL[latestNote.category] ?? latestNote.category}</p>
+          <p className="leading-snug line-clamp-2">{latestNote.content}</p>
+        </div>
+      )}
+
       {/* ── Actions ── */}
       <div className="mt-auto flex flex-col gap-1.5 pt-1">
         {/* Housekeeping cycle */}
@@ -136,6 +162,17 @@ export default function HousekeepingRoomCard({
           >
             <Plus className="h-3 w-3" />
             Đặt phòng mới
+          </button>
+        )}
+
+        {/* Add note */}
+        {onAddNote && (
+          <button
+            onClick={() => onAddNote(room)}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-transparent px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <MessageSquarePlus className="h-3 w-3" />
+            {latestNote ? 'Ghi chú mới' : 'Thêm ghi chú'}
           </button>
         )}
       </div>

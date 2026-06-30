@@ -32,6 +32,7 @@ class RoomOut(BaseModel):
     active_bike_names: list[str] = []
     outstanding_balance: Decimal | None = None
     active_booking_id: int | None = None
+    next_booking_date: date | None = None  # earliest future booking check-in after this range
 
     model_config = {"from_attributes": True}
 

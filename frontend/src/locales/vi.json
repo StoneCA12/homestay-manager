@@ -28,7 +28,8 @@
     "logout": "Đăng xuất",
     "loggedInAs": "Đang đăng nhập:",
     "bikrentals": "Xe máy",
-    "activity": "Nhật ký"
+    "activity": "Nhật ký",
+    "reports": "Báo cáo"
   },
   "auth": {
     "email": "Email",

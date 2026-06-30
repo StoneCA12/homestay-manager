@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AlertTriangle, ArrowRight, BedDouble, Bike, Check,
+  AlertTriangle, AlarmClock, ArrowRight, BedDouble, Bike, Check,
   Clock, LogIn, LogOut, RefreshCw, Wrench,
 } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
@@ -19,10 +19,11 @@ interface DashboardData {
   rooms: Room[]
   lateCheckins: Booking[]
   noRoom: Booking[]
+  overdueCheckouts: Booking[]
   activity: ActivityItem[]
 }
 
-const INITIAL: DashboardData = { report: null, rooms: [], lateCheckins: [], noRoom: [], activity: [] }
+const INITIAL: DashboardData = { report: null, rooms: [], lateCheckins: [], noRoom: [], overdueCheckouts: [], activity: [] }
 
 // ── Accent palette ────────────────────────────────────────────────
 
@@ -134,6 +135,29 @@ function BookingRow({ booking, onClick, showCheckIn }: { booking: Booking; onCli
               Dự kiến: {new Date(booking.check_in_date + 'T00:00:00').toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })}
             </p>
           )}
+        </div>
+        {owed > 0 && (
+          <span className="shrink-0 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">Còn {formatVND(owed)}</span>
+        )}
+      </div>
+    </button>
+  )
+}
+
+function OverdueRow({ booking, onClick }: { booking: Booking; onClick: () => void }) {
+  const owed = Number(booking.total_price) - Number(booking.collected_amount)
+  const daysOverdue = Math.floor((Date.now() - new Date(booking.check_out_date + 'T00:00:00').getTime()) / 86_400_000)
+  return (
+    <button onClick={onClick} className="group w-full rounded-lg px-1 py-2 text-left transition-colors hover:bg-background/60">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold text-foreground">{booking.room_number ? `P.${booking.room_number}` : '—'}</span>
+            <span className="truncate text-sm text-foreground">{booking.guest_name}</span>
+          </div>
+          <p className="mt-0.5 text-xs font-semibold text-red-600">
+            Quá hạn {daysOverdue} ngày · trả {new Date(booking.check_out_date + 'T00:00:00').toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })}
+          </p>
         </div>
         {owed > 0 && (
           <span className="shrink-0 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">Còn {formatVND(owed)}</span>
@@ -280,22 +304,28 @@ export default function DashboardPage() {
     const todayIso     = new Date().toISOString().slice(0, 10)
     const yesterdayIso = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 
-    const [reportRes, roomsRes, lateRes, noRoomRes, activityRes] = await Promise.allSettled([
+    const [reportRes, roomsRes, lateRes, noRoomRes, checkedInRes, activityRes] = await Promise.allSettled([
       revenueApi.dailyReport(),
       roomsApi.list(),
       // late check-ins: CONFIRMED, check_in <= yesterday AND check_out >= today
       bookingsApi.list({ booking_status: 'CONFIRMED', start_date: todayIso, end_date: yesterdayIso }),
       // no-room: CONFIRMED, check_out >= today (filter room_id === null client-side)
       bookingsApi.list({ booking_status: 'CONFIRMED', start_date: todayIso, limit: 100 }),
+      // overdue checkouts: all CHECKED_IN (filter check_out_date < today client-side)
+      bookingsApi.list({ booking_status: 'CHECKED_IN', limit: 200 }),
       activityApi.list({ limit: 20 }),
     ])
 
+    const checkedIn = checkedInRes.status === 'fulfilled' ? checkedInRes.value : []
+    const overdue   = checkedIn.filter((b) => b.check_out_date < yesterdayIso)
+
     setData({
-      report:       reportRes.status  === 'fulfilled' ? reportRes.value  : null,
-      rooms:        roomsRes.status   === 'fulfilled' ? roomsRes.value   : [],
-      lateCheckins: lateRes.status    === 'fulfilled' ? lateRes.value    : [],
-      noRoom:       noRoomRes.status  === 'fulfilled' ? noRoomRes.value  : [],
-      activity:     activityRes.status === 'fulfilled' ? activityRes.value : [],
+      report:           reportRes.status   === 'fulfilled' ? reportRes.value   : null,
+      rooms:            roomsRes.status    === 'fulfilled' ? roomsRes.value    : [],
+      lateCheckins:     lateRes.status     === 'fulfilled' ? lateRes.value     : [],
+      noRoom:           noRoomRes.status   === 'fulfilled' ? noRoomRes.value   : [],
+      overdueCheckouts: overdue,
+      activity:         activityRes.status === 'fulfilled' ? activityRes.value : [],
     })
     setLastRefreshed(new Date())
     setLoading(false)
@@ -359,9 +389,15 @@ export default function DashboardPage() {
         {/* ── Stat chips ── */}
         {data.report && (
           <div className="flex flex-wrap gap-2">
+            {Number(data.report.revenue.total_collected) > 0 && (
+              <Chip label="Đã thu" value={formatVND(data.report.revenue.total_collected)} color="green" />
+            )}
             <Chip label="Phòng" value={`${data.report.in_house.length}/${data.rooms.length}`} color="green" />
             <Chip label="Nhận hôm nay"  value={data.report.arrivals.length}    color="yellow" />
             <Chip label="Trả hôm nay"   value={data.report.departures.length}  color="blue" />
+            {data.overdueCheckouts.length > 0 && (
+              <Chip label="Quá hạn trả phòng" value={data.overdueCheckouts.length} color="red" onClick={() => goTab('all')} />
+            )}
             {hkQueue.length > 0 && (
               <Chip label="Cần dọn" value={hkQueue.length} color="red" onClick={goRooms} />
             )}
@@ -376,6 +412,25 @@ export default function DashboardPage() {
 
         {/* ── Widget grid ── */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+
+          {/* ── Overdue checkout alert (spans full width when present) ── */}
+          {data.overdueCheckouts.length > 0 && (
+            <div className="col-span-1 md:col-span-2 lg:col-span-3">
+              <WidgetCard
+                title="Khách quá hạn trả phòng"
+                count={data.overdueCheckouts.length}
+                icon={AlarmClock}
+                accent="red"
+                loading={loading}
+                emptyMessage=""
+                onSeeAll={() => goTab('all')}
+              >
+                {data.overdueCheckouts.map((b) => (
+                  <OverdueRow key={b.id} booking={b} onClick={() => goBooking(b.id)} />
+                ))}
+              </WidgetCard>
+            </div>
+          )}
 
           {/* Row 1: Today's operations */}
           <WidgetCard

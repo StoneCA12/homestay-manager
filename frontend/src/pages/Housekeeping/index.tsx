@@ -5,9 +5,11 @@ import HousekeepingRoomCard, { STATUS_CONFIG } from '../../components/housekeepi
 import FilterBar from '../../components/filters/FilterBar'
 import BookingDetailModal from '../../components/bookings/BookingDetailModal'
 import BookingFormModal from '../../components/bookings/BookingFormModal'
+import InternalNotesFeed from '../../components/notes/InternalNotesFeed'
 import Layout from '../../components/layout/Layout'
-import { bookingsApi, roomsApi } from '../../services/api'
-import type { Booking, Room, RoomStatus } from '../../types'
+import { bookingsApi, notesApi, roomsApi } from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
+import type { Booking, InternalNote, Room, RoomStatus } from '../../types'
 
 const ORDER: RoomStatus[] = ['DIRTY', 'CLEANING', 'OUT_OF_ORDER', 'AVAILABLE']
 
@@ -40,11 +42,16 @@ function matchesRoomFilter(r: Room, f: RoomFilter): boolean {
 
 export default function HousekeepingPage() {
   const { t } = useTranslation()
+  const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<number | null>(null)
   const [error, setError] = useState('')
+
+  // ── Room notes (latest HK/Maintenance note per room) ─────────────
+  const [roomNotes, setRoomNotes] = useState<Record<number, InternalNote>>({})
+  const [noteRoom, setNoteRoom] = useState<Room | null>(null)
 
   // ── Modal state ──────────────────────────────────────────────────
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null)
@@ -79,19 +86,29 @@ export default function HousekeepingPage() {
   }, [setSearchParams])
 
   // ── Data loading + 60s polling ───────────────────────────────────
+  const refreshNotes = useCallback(() => {
+    notesApi.latestRoomNotes('HOUSEKEEPING,MAINTENANCE').then((notes) => {
+      const map: Record<number, InternalNote> = {}
+      notes.forEach((n) => { map[n.entity_id] = n })
+      setRoomNotes(map)
+    }).catch(() => {})
+  }, [])
+
   const refresh = useCallback(() => {
     roomsApi.list().then(setRooms).catch(() => {})
-  }, [])
+    refreshNotes()
+  }, [refreshNotes])
 
   useEffect(() => {
     roomsApi.list()
       .then(setRooms)
       .catch(() => setError('Không thể tải danh sách phòng.'))
       .finally(() => setLoading(false))
+    refreshNotes()
 
     const interval = setInterval(refresh, 60_000)
     return () => clearInterval(interval)
-  }, [refresh])
+  }, [refresh, refreshNotes])
 
   // ── Actions ──────────────────────────────────────────────────────
   const handleStatusChange = async (room: Room, next: RoomStatus) => {
@@ -200,9 +217,11 @@ export default function HousekeepingPage() {
                   key={room.id}
                   room={room}
                   updating={updating === room.id}
+                  latestNote={roomNotes[room.id] ?? null}
                   onStatusChange={handleStatusChange}
                   onViewBooking={handleViewBooking}
                   onAssignGuest={setAssignRoom}
+                  onAddNote={setNoteRoom}
                 />
               ))}
             </div>
@@ -239,6 +258,38 @@ export default function HousekeepingPage() {
             refresh()
           }}
         />
+      )}
+
+      {/* ── Room notes modal ── */}
+      {noteRoom && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+          onClick={(e) => { if (e.target === e.currentTarget) setNoteRoom(null) }}
+        >
+          <div className="w-full max-w-sm rounded-t-2xl bg-background p-4 shadow-xl sm:rounded-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">
+                Ghi chú phòng P.{noteRoom.room_number}
+              </p>
+              <button
+                onClick={() => setNoteRoom(null)}
+                className="rounded p-1 text-muted-foreground hover:bg-muted"
+              >
+                ✕
+              </button>
+            </div>
+            <InternalNotesFeed
+              entityType="ROOM"
+              entityId={noteRoom.id}
+              userRole={user?.role ?? 'RECEPTIONIST'}
+              allowedCategories={
+                user?.role === 'OWNER'
+                  ? ['HOUSEKEEPING', 'MAINTENANCE', 'OWNER']
+                  : ['HOUSEKEEPING', 'MAINTENANCE']
+              }
+            />
+          </div>
+        </div>
       )}
     </Layout>
   )

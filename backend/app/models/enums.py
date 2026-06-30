@@ -63,3 +63,16 @@ class ExpenseCategory(str, enum.Enum):
     UTILITIES = "UTILITIES"
     SALARIES = "SALARIES"
     MAINTENANCE = "MAINTENANCE"
+
+
+class NoteCategory(str, enum.Enum):
+    RECEPTION = "RECEPTION"
+    HOUSEKEEPING = "HOUSEKEEPING"
+    MAINTENANCE = "MAINTENANCE"
+    OWNER = "OWNER"
+
+
+class NoteEntityType(str, enum.Enum):
+    BOOKING = "BOOKING"
+    ROOM = "ROOM"
+    GUEST = "GUEST"

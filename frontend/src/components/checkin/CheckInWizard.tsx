@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, X } from 'lucide-react'
+import { CheckCircle2, Sparkles, X } from 'lucide-react'
 import type { Booking, Payment, Room } from '../../types'
-import { bookingsApi } from '../../services/api'
+import { bookingsApi, roomsApi } from '../../services/api'
 import { formatDate, formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -66,6 +66,21 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
   const [roomConflict, setRoomConflict] = useState<ConflictDetail | null>(null)
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
+  const [suggesting, setSuggesting] = useState(false)
+
+  const handleSuggest = async () => {
+    setSuggesting(true)
+    try {
+      const suggested = await roomsApi.suggest(booking.check_in_date, booking.check_out_date, booking.room_id ? undefined : undefined)
+      if (suggested) {
+        setSelectedRoomId(String(suggested.id))
+        setRoomConflict(null)
+        setError('')
+      }
+    } finally {
+      setSuggesting(false)
+    }
+  }
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === Number(selectedRoomId)),
@@ -228,22 +243,36 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Phân phòng</h3>
 
-              <div>
-                <label className={labelCls}>Phòng *</label>
-                <select
-                  value={selectedRoomId}
-                  onChange={(e) => { setSelectedRoomId(e.target.value); setRoomConflict(null); setError('') }}
-                  className={inputCls}
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className={labelCls}>Phòng *</label>
+                  <select
+                    value={selectedRoomId}
+                    onChange={(e) => { setSelectedRoomId(e.target.value); setRoomConflict(null); setError('') }}
+                    className={inputCls}
+                  >
+                    <option value="">-- Chọn phòng --</option>
+                    {rooms.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        P.{r.room_number}
+                        {r.display_status === 'OCCUPIED' ? ' 🚫 Đang có khách' : ''}
+                        {r.housekeeping_status !== 'AVAILABLE' ? ` (${r.housekeeping_status === 'DIRTY' ? 'Chưa dọn' : r.housekeeping_status === 'CLEANING' ? 'Đang dọn' : 'Tạm ngừng'})` : ''}
+                        {r.next_booking_date ? ` · tiếp: ${r.next_booking_date}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSuggest}
+                  disabled={suggesting}
+                  className="mb-[2px] shrink-0 gap-1.5"
                 >
-                  <option value="">-- Chọn phòng --</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      P.{r.room_number}
-                      {r.display_status === 'OCCUPIED' ? ' 🚫 Đang có khách' : ''}
-                      {r.housekeeping_status !== 'AVAILABLE' ? ` (${r.housekeeping_status === 'DIRTY' ? 'Chưa dọn' : r.housekeeping_status === 'CLEANING' ? 'Đang dọn' : 'Tạm ngừng'})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {suggesting ? 'Đang tìm…' : 'Gợi ý'}
+                </Button>
               </div>
 
               {/* Hard block: room occupied */}

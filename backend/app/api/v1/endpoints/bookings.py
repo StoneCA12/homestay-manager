@@ -25,7 +25,8 @@ from app.schemas.booking import (
     LateCheckoutSurcharge,
     WalkInCreate,
 )
-from app.schemas.payment import PaymentCreate, PaymentOut
+from app.schemas.booking import compute_payment_state
+from app.schemas.payment import PaymentCreate, PaymentOut, PaymentVoid
 from app.core.activity import log_activity
 
 router = APIRouter()
@@ -54,11 +55,13 @@ _TERMINAL = [BookingStatus.CHECKED_OUT, BookingStatus.CANCELLED, BookingStatus.N
 
 
 def _to_booking_out(b: Booking) -> BookingOut:
+    payment_count = len(b.payments)
     return BookingOut(
         id=b.id,
         booking_ref=b.booking_ref,
         room_id=b.room_id,
         room_number=b.room.room_number if b.room else None,
+        guest_id=b.guest_id,
         guest_name=b.guest.full_name,
         guest_phone=b.guest.phone,
         guest_id_type=b.guest.id_type,
@@ -70,6 +73,7 @@ def _to_booking_out(b: Booking) -> BookingOut:
         status=b.status,
         total_price=b.total_price,
         collected_amount=b.collected_amount,
+        payment_state=compute_payment_state(b.total_price, b.collected_amount, payment_count),
         notes=b.notes,
         is_archived=b.is_archived,
         archived_at=b.archived_at,
@@ -754,6 +758,49 @@ def add_payment(
     guest_suffix = f" ({booking.guest.full_name})"
     _log(db, booking_id, current_user.id, "PAYMENT", pay_desc)
     log_activity(db, "PAYMENT", pay_desc + room_suffix + guest_suffix,
+                 booking_id=booking_id,
+                 room_number=booking.room.room_number if booking.room else None,
+                 actor_name=current_user.full_name, user_id=current_user.id)
+
+    db.commit()
+    db.refresh(booking)
+    return _to_booking_out(booking)
+
+
+@router.post("/{booking_id}/payments/{payment_id}/void", response_model=BookingOut)
+def void_payment(
+    booking_id: int,
+    payment_id: int,
+    body: PaymentVoid,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Void a payment by creating a full reversal entry. Preserves audit trail."""
+    booking = db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Đặt phòng không tồn tại")
+    payment = db.get(Payment, payment_id)
+    if not payment or payment.booking_id != booking_id:
+        raise HTTPException(status_code=404, detail="Khoản thanh toán không tồn tại")
+    if payment.amount < 0:
+        raise HTTPException(status_code=400, detail="Không thể hủy khoản hoàn trả")
+
+    reversal = Payment(
+        booking_id=booking_id,
+        amount=-payment.amount,
+        method=payment.method,
+        notes=f"Hủy #{payment_id}: {body.reason}",
+        recorded_by_id=current_user.id,
+    )
+    db.add(reversal)
+    db.flush()
+    _recalculate_collected(db, booking)
+
+    desc = f"Hủy khoản thu #{payment_id} ({int(payment.amount):,} VND) — {body.reason}"
+    room_suffix = f" · P.{booking.room.room_number}" if booking.room else ""
+    guest_suffix = f" ({booking.guest.full_name})"
+    _log(db, booking_id, current_user.id, "PAYMENT_VOID", desc)
+    log_activity(db, "PAYMENT", desc + room_suffix + guest_suffix,
                  booking_id=booking_id,
                  room_number=booking.room.room_number if booking.room else None,
                  actor_name=current_user.full_name, user_id=current_user.id)

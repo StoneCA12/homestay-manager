@@ -13,9 +13,13 @@ import OD1Print from '../print/OD1Print'
 import ConfirmationPrint from '../print/ConfirmationPrint'
 import BookingStatusBadge from './BookingStatusBadge'
 import WarningBanner from './WarningBanner'
+import InternalNotesFeed from '../notes/InternalNotesFeed'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog'
 
 const METHOD_ICON: Record<string, string> = {
   CASH:          '💵',
@@ -25,6 +29,23 @@ const METHOD_ICON: Record<string, string> = {
 
 const SELECT_CLASS =
   'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+
+const PAYMENT_STATE_CONFIG: Record<string, { label: string; cls: string }> = {
+  unpaid:          { label: 'Chưa thanh toán',  cls: 'bg-zinc-100 text-zinc-600' },
+  deposit_paid:    { label: 'Đã đặt cọc',       cls: 'bg-amber-100 text-amber-700' },
+  partially_paid:  { label: 'Trả một phần',      cls: 'bg-blue-100 text-blue-700' },
+  paid:            { label: 'Đã thanh toán đủ',  cls: 'bg-emerald-100 text-emerald-700' },
+  refunded:        { label: 'Đã hoàn tiền',      cls: 'bg-purple-100 text-purple-700' },
+}
+
+function PaymentStateBadge({ state }: { state: string }) {
+  const cfg = PAYMENT_STATE_CONFIG[state] ?? { label: state, cls: 'bg-zinc-100 text-zinc-600' }
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cfg.cls}`}>
+      {cfg.label}
+    </span>
+  )
+}
 
 function nightCount(checkIn: string, checkOut: string): number {
   return Math.round(
@@ -70,6 +91,12 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
   const [addError, setAddError] = useState('')
   const [addConflict, setAddConflict] = useState<ConflictDetail | null>(null)
 
+  // Void payment state
+  const [voidTarget, setVoidTarget] = useState<Payment | null>(null)
+  const [voidReason, setVoidReason] = useState('')
+  const [voidSaving, setVoidSaving] = useState(false)
+  const [voidError, setVoidError] = useState('')
+
   // Archive / cancel / restore state
   const [cancelPending, setCancelPending] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -94,6 +121,25 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
       if (logEntries) setLogs(logEntries)
     }).catch(() => {}).finally(() => setLoadingPayments(false))
   }, [booking.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleVoidPayment = async () => {
+    if (!voidTarget) return
+    if (!voidReason.trim()) { setVoidError('Vui lòng nhập lý do hủy'); return }
+    setVoidSaving(true)
+    setVoidError('')
+    try {
+      const updated = await bookingsApi.voidPayment(booking.id, voidTarget.id, voidReason.trim())
+      setBooking(updated)
+      const pmts = await bookingsApi.getPayments(booking.id)
+      setPayments(pmts)
+      setVoidTarget(null)
+      setVoidReason('')
+    } catch (e: any) {
+      setVoidError(e.response?.data?.detail ?? 'Lỗi hủy khoản thu')
+    } finally {
+      setVoidSaving(false)
+    }
+  }
 
   const nights      = nightCount(booking.check_in_date, booking.check_out_date)
   const outstanding = Number(booking.total_price) - Number(booking.collected_amount)
@@ -278,6 +324,9 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
 
           {/* Payment */}
           <Section title="Thanh toán">
+            <Row label="Trạng thái">
+              <PaymentStateBadge state={booking.payment_state} />
+            </Row>
             <Row label="Tổng tiền">
               <span className="font-semibold text-foreground">{formatVND(booking.total_price)}</span>
             </Row>
@@ -287,11 +336,6 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
             {outstanding > 0 && (
               <Row label="Còn lại">
                 <span className="font-bold text-red-600">{formatVND(outstanding)}</span>
-              </Row>
-            )}
-            {outstanding === 0 && (
-              <Row label="">
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-600">✓ Đã thanh toán đủ</span>
               </Row>
             )}
           </Section>
@@ -305,20 +349,33 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
             ) : (
               <div className="space-y-2">
                 {payments.map((p) => (
-                  <div key={p.id} className="flex items-start gap-3 rounded-lg bg-background px-3 py-2.5">
-                    <span className="mt-0.5 text-base">{METHOD_ICON[p.method] ?? '💰'}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-sm font-semibold text-foreground">{formatVND(p.amount)}</span>
-                        <span className="whitespace-nowrap text-xs text-muted-foreground">
-                          {new Date(p.paid_at).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })}
-                        </span>
+                  <div key={p.id} className="rounded-lg bg-background px-3 py-2.5">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 text-base">{Number(p.amount) < 0 ? '↩️' : (METHOD_ICON[p.method] ?? '💰')}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className={cn('text-sm font-semibold', Number(p.amount) < 0 ? 'text-red-600' : 'text-foreground')}>
+                            {Number(p.amount) < 0 ? '−' : ''}{formatVND(Math.abs(Number(p.amount)))}
+                          </span>
+                          <span className="whitespace-nowrap text-xs text-muted-foreground">
+                            {new Date(p.paid_at).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {t(`paymentMethod.${p.method}` as any)}
+                          {p.recorded_by_name && <span className="text-muted-foreground/70"> · {p.recorded_by_name}</span>}
+                        </p>
+                        {p.notes && <p className="mt-0.5 text-xs italic text-muted-foreground">{p.notes}</p>}
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {t(`paymentMethod.${p.method}` as any)}
-                        {p.recorded_by_name && <span className="text-muted-foreground/70"> · {p.recorded_by_name}</span>}
-                      </p>
-                      {p.notes && <p className="mt-0.5 text-xs italic text-muted-foreground">{p.notes}</p>}
+                      {Number(p.amount) > 0 && isActive && (
+                        <button
+                          onClick={() => { setVoidTarget(p); setVoidReason(''); setVoidError('') }}
+                          className="mt-0.5 shrink-0 text-xs text-muted-foreground/60 hover:text-red-500"
+                          title="Hủy khoản thu này"
+                        >
+                          Hủy
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -430,12 +487,31 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
             </div>
           )}
 
-          {/* Notes */}
+          {/* Public booking notes (from booking form) */}
           {booking.notes && (
-            <Section title="Ghi chú">
+            <Section title="Ghi chú đặt phòng">
               <p className="text-sm leading-relaxed text-muted-foreground">{booking.notes}</p>
             </Section>
           )}
+
+          {/* Internal staff notes on this booking */}
+          <Section title="Ghi chú nội bộ — Đặt phòng">
+            <InternalNotesFeed
+              entityType="BOOKING"
+              entityId={booking.id}
+              userRole={user?.role ?? 'RECEPTIONIST'}
+            />
+          </Section>
+
+          {/* Internal notes on the guest */}
+          <Section title={`Ghi chú nội bộ — Khách: ${booking.guest_name}`}>
+            <InternalNotesFeed
+              entityType="GUEST"
+              entityId={booking.guest_id}
+              userRole={user?.role ?? 'RECEPTIONIST'}
+              allowedCategories={['RECEPTION', 'OWNER']}
+            />
+          </Section>
 
           {/* Activity log — admin/owner only */}
           {canViewLogs && (
@@ -629,6 +705,45 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
       {showConfirmation && (
         <ConfirmationPrint booking={booking} onClose={() => setShowConfirmation(false)} />
       )}
+
+      {/* Void payment confirm dialog */}
+      <Dialog open={voidTarget !== null} onOpenChange={(open) => { if (!open) { setVoidTarget(null); setVoidReason(''); setVoidError('') } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Hủy khoản thu</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <p className="text-sm text-muted-foreground">
+              Bạn đang hủy khoản thu{' '}
+              <strong className="text-foreground">{voidTarget ? formatVND(voidTarget.amount) : ''}</strong>.
+              Hành động này không thể hoàn tác.
+            </p>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-muted-foreground">Lý do hủy *</label>
+              <Input
+                value={voidReason}
+                onChange={(e) => { setVoidReason(e.target.value); setVoidError('') }}
+                placeholder="Nhập lý do..."
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter' && voidReason.trim()) handleVoidPayment() }}
+              />
+            </div>
+            {voidError && <p className="text-xs text-destructive">{voidError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setVoidTarget(null); setVoidReason(''); setVoidError('') }}>
+              Hủy bỏ
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={voidSaving || !voidReason.trim()}
+              onClick={handleVoidPayment}
+            >
+              {voidSaving ? 'Đang hủy…' : 'Xác nhận hủy'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
