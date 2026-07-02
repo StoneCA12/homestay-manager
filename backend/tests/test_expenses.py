@@ -28,16 +28,15 @@ def test_admin_can_add_all_categories(client, admin):
         assert resp.status_code == 201, f"{cat}: {resp.json()}"
 
 
-def test_receptionist_can_add_allowed_categories(client, receptionist):
-    for cat in ("CLEANING", "SUPPLIES", "OTHER"):
+def test_receptionist_can_add_all_but_salaries(client, receptionist):
+    for cat in ("CLEANING", "SUPPLIES", "OTHER", "UTILITIES", "MAINTENANCE"):
         resp = _expense(client, receptionist, category=cat)
         assert resp.status_code == 201, f"{cat}: {resp.json()}"
 
 
-def test_receptionist_blocked_from_restricted_categories(client, receptionist):
-    for cat in ("UTILITIES", "SALARIES", "MAINTENANCE"):
-        resp = _expense(client, receptionist, category=cat)
-        assert resp.status_code == 403, f"Expected 403 for {cat}, got {resp.status_code}"
+def test_receptionist_blocked_from_salaries(client, receptionist):
+    resp = _expense(client, receptionist, category="SALARIES")
+    assert resp.status_code == 403
 
 
 def test_create_expense_response_shape(client, owner):
@@ -89,13 +88,15 @@ def test_list_requires_auth(client):
     assert client.get(f"{BASE}/").status_code == 401
 
 
-def test_receptionist_cannot_see_restricted_categories(client, owner, receptionist):
+def test_receptionist_sees_all_but_salaries(client, owner, receptionist):
     _expense(client, owner, category="SALARIES", amount="5000000")
     _expense(client, owner, category="CLEANING", amount="200000")
+    _expense(client, owner, category="UTILITIES", amount="150000")
     resp = client.get(f"{BASE}/", cookies=cookie_for(receptionist))
     categories = [e["category"] for e in resp.json()]
     assert "SALARIES" not in categories
     assert "CLEANING" in categories
+    assert "UTILITIES" in categories
 
 
 def test_list_date_filter_start(client, owner):

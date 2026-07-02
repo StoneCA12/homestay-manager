@@ -49,6 +49,8 @@ export default function InternalNotesFeed({ entityType, entityId, userRole, allo
   const [category, setCategory] = useState<NoteCategory>('RECEPTION')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const roleAllowed = userRole === 'OWNER' ? ALL_CATEGORIES : NON_OWNER_CATEGORIES
   const writeable = (allowedCategories ?? ALL_CATEGORIES).filter(c => roleAllowed.includes(c))
@@ -76,6 +78,19 @@ export default function InternalNotesFeed({ entityType, entityId, userRole, allo
       setError(e.response?.data?.detail ?? 'Lỗi thêm ghi chú')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    setDeletingId(id)
+    try {
+      await notesApi.delete(id)
+      setNotes((prev) => prev.filter((n) => n.id !== id))
+      setConfirmDeleteId(null)
+    } catch {
+      // leave the confirm state so the user can retry
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -131,9 +146,35 @@ export default function InternalNotesFeed({ entityType, entityId, userRole, allo
                 <span className="whitespace-nowrap text-[10px] opacity-70">{formatTs(n.created_at)}</span>
               </div>
               <p className={cn('mt-1.5 text-sm leading-snug', compact && 'text-xs')}>{n.content}</p>
-              {n.author_name && (
-                <p className="mt-1 text-[10px] opacity-60">— {n.author_name}</p>
-              )}
+              <div className="mt-1 flex items-center justify-between gap-2">
+                {n.author_name ? (
+                  <p className="text-[10px] opacity-60">— {n.author_name}</p>
+                ) : <span />}
+                {entityType === 'ROOM' && (
+                  confirmDeleteId === n.id ? (
+                    <span className="flex items-center gap-1.5 text-[10px]">
+                      Xóa ghi chú này?
+                      <button
+                        onClick={() => handleDelete(n.id)}
+                        disabled={deletingId === n.id}
+                        className="font-semibold text-red-600 hover:underline disabled:opacity-50"
+                      >
+                        {deletingId === n.id ? 'Đang xóa…' : 'Xóa'}
+                      </button>
+                      <button onClick={() => setConfirmDeleteId(null)} className="text-muted-foreground hover:underline">
+                        Hủy
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(n.id)}
+                      className="text-[10px] text-muted-foreground opacity-60 hover:opacity-100 hover:text-red-600"
+                    >
+                      Xóa
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           ))}
         </div>

@@ -12,7 +12,7 @@ from app.models.bike import Bike
 from app.models.bike_payment import BikePayment
 from app.models.bike_rental import BikeRental
 from app.models.booking import Booking
-from app.models.enums import BikeRentalStatus, BikeStatus
+from app.models.enums import BikeRentalStatus, BikeStatus, PaymentMethod
 from app.models.user import User
 
 
@@ -291,6 +291,7 @@ def create_rental(
         created_by_id=current_user.id,
     )
     db.add(rental)
+    booking.total_price = booking.total_price + total
     bike.status = BikeStatus.RENTED
     room_label = f"P.{booking.room.room_number}" if booking.room else "—"
     log_activity(
@@ -333,8 +334,12 @@ def update_rental(
     if body.notes is not None:
         rental.notes = body.notes
 
+    old_total = rental.total_amount
     rental.num_days = _calc_days(rental.start_date, rental.end_date)
     rental.total_amount = rental.daily_rate * rental.num_days
+    delta = rental.total_amount - old_total
+    if delta != 0:
+        rental.booking.total_price = rental.booking.total_price + delta
     db.commit()
     db.refresh(rental)
     return _to_rental_out(rental)
@@ -351,6 +356,29 @@ def return_rental(
         raise HTTPException(status_code=404, detail="Thuê xe không tồn tại")
     if rental.status != BikeRentalStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="Thuê xe đã kết thúc hoặc đã hủy")
+
+    today = date.today()
+    if today < rental.end_date:
+        # Early return — recompute cost for actual days used and refund the difference.
+        new_num_days = max(1, (today - rental.start_date).days)
+        if new_num_days < rental.num_days:
+            new_total = rental.daily_rate * new_num_days
+            delta = new_total - rental.total_amount
+            rental.booking.total_price = rental.booking.total_price + delta
+            if rental.collected_amount > new_total:
+                refund = rental.collected_amount - new_total
+                last_method = rental.payments[-1].method if rental.payments else PaymentMethod.CASH
+                db.add(BikePayment(
+                    bike_rental_id=rental.id,
+                    amount=-refund,
+                    method=last_method,
+                    notes="Hoàn tiền trả xe sớm",
+                    recorded_by_id=current_user.id,
+                ))
+                rental.collected_amount = new_total
+            rental.end_date = today
+            rental.num_days = new_num_days
+            rental.total_amount = new_total
 
     rental.status = BikeRentalStatus.RETURNED
     # Only set bike to available if no other active rentals
@@ -383,11 +411,23 @@ def return_rental(
 def cancel_rental(
     rental_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin_or_above),
+    current_user: User = Depends(require_admin_or_above),
 ):
     rental = db.get(BikeRental, rental_id)
     if not rental:
         raise HTTPException(status_code=404, detail="Thuê xe không tồn tại")
+
+    rental.booking.total_price = rental.booking.total_price - rental.total_amount
+    if rental.collected_amount > 0:
+        last_method = rental.payments[-1].method if rental.payments else PaymentMethod.CASH
+        db.add(BikePayment(
+            bike_rental_id=rental.id,
+            amount=-rental.collected_amount,
+            method=last_method,
+            notes="Hoàn tiền tự động do hủy thuê xe",
+            recorded_by_id=current_user.id,
+        ))
+        rental.collected_amount = Decimal("0")
 
     rental.status = BikeRentalStatus.CANCELLED
     other = (

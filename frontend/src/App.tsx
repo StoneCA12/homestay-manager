@@ -75,7 +75,7 @@ export default function App() {
       />
       <Route
         path="/reports"
-        element={<ProtectedRoute><EndOfDayPage /></ProtectedRoute>}
+        element={<RoleRoute roles={['OWNER', 'ADMIN']}><EndOfDayPage /></RoleRoute>}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

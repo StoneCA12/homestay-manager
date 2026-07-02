@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 
 const ALL_CATEGORIES: ExpenseCategory[] = ['CLEANING', 'SUPPLIES', 'OTHER', 'UTILITIES', 'SALARIES', 'MAINTENANCE']
-const RECEPTIONIST_CATEGORIES: ExpenseCategory[] = ['CLEANING', 'SUPPLIES', 'OTHER']
+const RECEPTIONIST_CATEGORIES: ExpenseCategory[] = ['CLEANING', 'SUPPLIES', 'OTHER', 'UTILITIES', 'MAINTENANCE']
 
 const SELECT_CLASS =
   'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'

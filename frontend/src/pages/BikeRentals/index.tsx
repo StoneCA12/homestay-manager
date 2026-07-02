@@ -642,7 +642,8 @@ export default function BikeRentalsPage() {
       const updated = await bikesApi.returnRental(rental.id)
       setRentals((prev) => prev.map((r) => r.id === updated.id ? updated : r))
       loadBikes()
-      showToast('Đã trả xe')
+      const refunded = Number(rental.total_amount) - Number(updated.total_amount)
+      showToast(refunded > 0 ? `Đã trả xe sớm — hoàn ${formatVND(refunded)}` : 'Đã trả xe')
     } catch (e: any) {
       showToast(e?.response?.data?.detail ?? 'Lỗi trả xe', 'error')
     }

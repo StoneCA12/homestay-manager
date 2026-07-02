@@ -196,6 +196,261 @@ def test_status_update_not_found(client, owner):
     assert resp.status_code == 404
 
 
+# ── Room charges ────────────────────────────────────────────────────────────
+
+def _charge(client, booking_id, user, amount="50000", description="Giặt ủi"):
+    return client.post(
+        f"{BASE}/{booking_id}/charges",
+        json={"amount": amount, "description": description},
+        cookies=cookie_for(user),
+    )
+
+
+def test_add_charge_increases_total_price(client, owner, checked_in_booking):
+    original_total = checked_in_booking.total_price
+    resp = _charge(client, checked_in_booking.id, owner, amount="75000", description="Nước uống")
+    assert resp.status_code == 200
+    assert Decimal(resp.json()["total_price"]) == original_total + Decimal("75000")
+
+
+def test_receptionist_can_add_charge(client, receptionist, checked_in_booking):
+    resp = _charge(client, checked_in_booking.id, receptionist)
+    assert resp.status_code == 200
+
+
+def test_add_charge_requires_checked_in(client, owner, booking):
+    resp = _charge(client, booking.id, owner)
+    assert resp.status_code == 400
+
+
+def test_add_charge_amount_must_be_positive(client, owner, checked_in_booking):
+    resp = _charge(client, checked_in_booking.id, owner, amount="0")
+    assert resp.status_code == 422
+
+
+def test_add_charge_requires_description(client, owner, checked_in_booking):
+    resp = client.post(
+        f"{BASE}/{checked_in_booking.id}/charges",
+        json={"amount": "50000", "description": ""},
+        cookies=cookie_for(owner),
+    )
+    assert resp.status_code == 422
+
+
+def test_add_charge_not_found(client, owner):
+    resp = _charge(client, 99999, owner)
+    assert resp.status_code == 404
+
+
+def test_add_charge_requires_auth(client, checked_in_booking):
+    resp = client.post(
+        f"{BASE}/{checked_in_booking.id}/charges",
+        json={"amount": "50000", "description": "Giặt ủi"},
+    )
+    assert resp.status_code == 401
+
+
 def test_receptionist_can_update_status(client, receptionist, booking):
     resp = _status(client, booking.id, "check_in", receptionist)
     assert resp.status_code == 200
+
+
+# ── Late payments ────────────────────────────────────────────────────────────
+
+def _make_booking(db, room, guest, owner, status, check_out, total_price="1000000", collected="0"):
+    from app.models.booking import Booking
+    from app.models.enums import BookingStatus, OTASource
+
+    b = Booking(
+        room_id=room.id,
+        guest_id=guest.id,
+        check_in_date=check_out - timedelta(days=2),
+        check_out_date=check_out,
+        num_guests=2,
+        ota_source=OTASource.DIRECT,
+        total_price=Decimal(total_price),
+        collected_amount=Decimal(collected),
+        status=BookingStatus[status],
+        created_by_id=owner.id,
+    )
+    db.add(b)
+    db.commit()
+    db.refresh(b)
+    return b
+
+
+def test_late_payment_includes_unpaid_checked_in_past_checkout(client, db, owner, room, guest):
+    from tests.conftest import TODAY
+    b = _make_booking(db, room, guest, owner, "CHECKED_IN", TODAY - timedelta(days=1), collected="500000")
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(owner))
+    assert resp.status_code == 200
+    ids = [r["id"] for r in resp.json()]
+    assert b.id in ids
+
+
+def test_late_payment_includes_unpaid_checked_out(client, db, owner, room, guest):
+    from tests.conftest import TODAY
+    b = _make_booking(db, room, guest, owner, "CHECKED_OUT", TODAY - timedelta(days=3), collected="200000")
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(owner))
+    ids = [r["id"] for r in resp.json()]
+    assert b.id in ids
+
+
+def test_late_payment_excludes_fully_paid(client, db, owner, room, guest):
+    from tests.conftest import TODAY
+    b = _make_booking(db, room, guest, owner, "CHECKED_OUT", TODAY - timedelta(days=1), collected="1000000")
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(owner))
+    ids = [r["id"] for r in resp.json()]
+    assert b.id not in ids
+
+
+def test_late_payment_excludes_future_checkout(client, db, owner, room, guest):
+    from tests.conftest import TODAY
+    b = _make_booking(db, room, guest, owner, "CHECKED_IN", TODAY + timedelta(days=1), collected="0")
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(owner))
+    ids = [r["id"] for r in resp.json()]
+    assert b.id not in ids
+
+
+def test_late_payment_excludes_confirmed_not_checked_in(client, db, owner, room, guest):
+    from tests.conftest import TODAY
+    b = _make_booking(db, room, guest, owner, "CONFIRMED", TODAY, collected="0")
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(owner))
+    ids = [r["id"] for r in resp.json()]
+    assert b.id not in ids
+
+
+def test_late_payment_excludes_cancelled(client, db, owner, room, guest):
+    from tests.conftest import TODAY
+    b = _make_booking(db, room, guest, owner, "CANCELLED", TODAY - timedelta(days=1), collected="0")
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(owner))
+    ids = [r["id"] for r in resp.json()]
+    assert b.id not in ids
+
+
+def test_late_payment_visible_to_receptionist(client, db, owner, receptionist, room, guest):
+    from tests.conftest import TODAY
+    b = _make_booking(db, room, guest, owner, "CHECKED_IN", TODAY, collected="0")
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(receptionist))
+    assert resp.status_code == 200
+    ids = [r["id"] for r in resp.json()]
+    assert b.id in ids
+
+
+def test_late_payment_requires_auth(client):
+    resp = client.get(f"{BASE}/late-payments")
+    assert resp.status_code == 401
+
+
+def test_late_payment_excludes_booking_paid_via_room_plus_bike(client, db, owner, room, guest):
+    """total_price includes bike cost; a booking counts as paid once room payments +
+    bike payments together cover it, even if the booking-only ledger looks underpaid."""
+    from app.models.bike import Bike
+    bike = Bike(name="Wave Alpha", daily_rate=Decimal("100000"))
+    db.add(bike)
+    db.commit()
+    db.refresh(bike)
+
+    b = _make_booking(db, room, guest, owner, "CHECKED_IN", TODAY, total_price="1000000", collected="1000000")
+    rental_resp = client.post("/api/v1/xe-may/rentals", json={
+        "bike_id": bike.id, "booking_id": b.id,
+        "start_date": str(TODAY), "end_date": str(TODAY + timedelta(days=2)),
+    }, cookies=cookie_for(owner))
+    rental_id = rental_resp.json()["id"]
+    # total_price is now 1,200,000 (1,000,000 room + 200,000 bike), room side fully paid,
+    # bike side unpaid -> should still show up as a late payment.
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(owner))
+    ids = [r["id"] for r in resp.json()]
+    assert b.id in ids
+
+    # Now pay off the bike rental too -> booking should drop off the late-payments list.
+    client.post(f"/api/v1/xe-may/rentals/{rental_id}/payments", json={
+        "amount": "200000", "method": "CASH",
+    }, cookies=cookie_for(owner))
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(owner))
+    ids = [r["id"] for r in resp.json()]
+    assert b.id not in ids
+
+
+# ── Stay extension ───────────────────────────────────────────────────────────
+
+def _extend(client, booking_id, user, extra_days=2, price="500000"):
+    return client.post(
+        f"{BASE}/{booking_id}/extend",
+        json={"extra_days": extra_days, "price": price},
+        cookies=cookie_for(user),
+    )
+
+
+def test_extend_stay_success(client, owner, checked_in_booking):
+    original_total = checked_in_booking.total_price
+    original_checkout = checked_in_booking.check_out_date
+    resp = _extend(client, checked_in_booking.id, owner, extra_days=2, price="500000")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["check_out_date"] == str(original_checkout + timedelta(days=2))
+    assert Decimal(data["total_price"]) == original_total + Decimal("500000")
+
+
+def test_receptionist_can_extend_stay(client, receptionist, checked_in_booking):
+    resp = _extend(client, checked_in_booking.id, receptionist)
+    assert resp.status_code == 200
+
+
+def test_extend_stay_requires_checked_in(client, owner, booking):
+    resp = _extend(client, booking.id, owner)
+    assert resp.status_code == 400
+
+
+def test_extend_stay_requires_room(client, db, owner, checked_in_booking):
+    checked_in_booking.room_id = None
+    db.commit()
+    resp = _extend(client, checked_in_booking.id, owner)
+    assert resp.status_code == 400
+
+
+def test_extend_stay_extra_days_must_be_positive(client, owner, checked_in_booking):
+    resp = _extend(client, checked_in_booking.id, owner, extra_days=0)
+    assert resp.status_code == 422
+
+
+def test_extend_stay_price_must_be_positive(client, owner, checked_in_booking):
+    resp = _extend(client, checked_in_booking.id, owner, price="0")
+    assert resp.status_code == 422
+
+
+def test_extend_stay_not_found(client, owner):
+    resp = _extend(client, 99999, owner)
+    assert resp.status_code == 404
+
+
+def test_extend_stay_requires_auth(client, checked_in_booking):
+    resp = client.post(
+        f"{BASE}/{checked_in_booking.id}/extend",
+        json={"extra_days": 2, "price": "500000"},
+    )
+    assert resp.status_code == 401
+
+
+def test_extend_stay_conflict_with_other_booking(client, db, owner, room, guest, checked_in_booking):
+    from app.models.guest import Guest
+    other_guest = Guest(full_name="Other Guest", phone="0909999999")
+    db.add(other_guest)
+    db.commit()
+    db.refresh(other_guest)
+    # Another confirmed booking on the same room starting right after the current checkout,
+    # but before the extended checkout date — must block the extension.
+    _make_booking(
+        db, room, other_guest, owner, "CONFIRMED",
+        check_out=checked_in_booking.check_out_date + timedelta(days=1),
+    )
+    resp = _extend(client, checked_in_booking.id, owner, extra_days=2, price="500000")
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["type"] == "ROOM_CONFLICT"
+
+
+def test_extend_stay_recorded_in_timeline(client, owner, checked_in_booking):
+    _extend(client, checked_in_booking.id, owner, extra_days=2, price="500000")
+    resp = client.get(f"{BASE}/{checked_in_booking.id}/logs", cookies=cookie_for(owner))
+    actions = [log["action"] for log in resp.json()]
+    assert "EXTENDED" in actions

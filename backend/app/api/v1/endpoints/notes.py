@@ -85,6 +85,25 @@ def create_note(
     return _to_note_out(note)
 
 
+@router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_note(
+    note_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a note. Only ROOM notes can be deleted — booking/guest notes remain
+    append-only as an audit trail."""
+    note = db.get(InternalNote, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Ghi chú không tồn tại")
+    if note.entity_type != NoteEntityType.ROOM:
+        raise HTTPException(status_code=400, detail="Chỉ có thể xóa ghi chú phòng")
+    if note.category == NoteCategory.OWNER and current_user.role != UserRole.OWNER:
+        raise HTTPException(status_code=403, detail="Chỉ chủ nhà mới có thể xóa ghi chú chủ nhà")
+    db.delete(note)
+    db.commit()
+
+
 @router.get("/rooms/latest", response_model=list[NoteOut])
 def latest_room_notes(
     categories: str = "HOUSEKEEPING,MAINTENANCE",

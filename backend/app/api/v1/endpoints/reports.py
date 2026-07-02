@@ -7,7 +7,7 @@ from sqlalchemy import Date as SADate
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_admin_or_above
+from app.core.deps import require_admin_or_above
 from app.models import (
     ActivityLog, Booking, BookingLog, HousekeepingLog, Payment, Room,
 )
@@ -252,7 +252,7 @@ def generate_eod_report(db: Session, target_date: date) -> EndOfDayReport:
 def get_end_of_day(
     report_date: date | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_admin_or_above),
 ):
     target = report_date or date.today()
     # Only use stored snapshot for past dates — today is always computed live

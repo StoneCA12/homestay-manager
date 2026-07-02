@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AlertTriangle, AlarmClock, ArrowRight, BedDouble, Bike, Check,
+  AlertTriangle, AlarmClock, ArrowRight, Banknote, BedDouble, Bike, Check,
   Clock, LogIn, LogOut, RefreshCw, Wrench,
 } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
 import RoomCard from '../../components/rooms/RoomCard'
-import { activityApi, bookingsApi, revenueApi, roomsApi } from '../../services/api'
+import { bookingsApi, revenueApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
-import type { ActivityItem, Booking, BookingSummaryRow, BikeReturnRow, DailyReport, Room } from '../../types'
+import type { Booking, BookingSummaryRow, BikeReturnRow, DailyReport, Room } from '../../types'
 import { formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
 
@@ -20,10 +20,10 @@ interface DashboardData {
   lateCheckins: Booking[]
   noRoom: Booking[]
   overdueCheckouts: Booking[]
-  activity: ActivityItem[]
+  latePayments: BookingSummaryRow[]
 }
 
-const INITIAL: DashboardData = { report: null, rooms: [], lateCheckins: [], noRoom: [], overdueCheckouts: [], activity: [] }
+const INITIAL: DashboardData = { report: null, rooms: [], lateCheckins: [], noRoom: [], overdueCheckouts: [], latePayments: [] }
 
 // ── Accent palette ────────────────────────────────────────────────
 
@@ -96,7 +96,9 @@ function WidgetCard({
 // ── Row components (module-level to preserve identity) ────────────
 
 function SummaryRow({ row, onClick, showCheckout }: { row: BookingSummaryRow; onClick: () => void; showCheckout?: boolean }) {
-  const owed = Number(row.total_price) - Number(row.collected_amount) + Number(row.bike_outstanding)
+  // total_price already includes bike rental cost; bike payments are collected via a
+  // separate ledger, so subtract bike_collected rather than adding bike outstanding.
+  const owed = Number(row.total_price) - Number(row.collected_amount) - Number(row.bike_collected)
   return (
     <button onClick={onClick} className="group w-full rounded-lg px-1 py-2 text-left transition-colors hover:bg-background/60">
       <div className="flex items-center justify-between gap-2">
@@ -211,47 +213,6 @@ function RoomRow({ room, onClick }: { room: Room; onClick: () => void }) {
   )
 }
 
-const EVENT_COLORS: Record<string, string> = {
-  BOOKING_CREATED: 'bg-blue-100 text-blue-700',
-  CHECKED_IN:      'bg-emerald-100 text-emerald-700',
-  CHECKED_OUT:     'bg-blue-100 text-blue-700',
-  CANCELLED:       'bg-red-100 text-red-700',
-  NO_SHOW:         'bg-orange-100 text-orange-700',
-  PAYMENT:         'bg-violet-100 text-violet-700',
-  ROOM_STATUS:     'bg-amber-100 text-amber-700',
-  BIKE_ASSIGNED:   'bg-purple-100 text-purple-700',
-  BIKE_RETURNED:   'bg-purple-100 text-purple-700',
-}
-const EVENT_LABELS: Record<string, string> = {
-  BOOKING_CREATED: 'Tạo mới',  CHECKED_IN: 'Nhận phòng', CHECKED_OUT: 'Trả phòng',
-  CANCELLED: 'Hủy',            NO_SHOW: 'Không đến',     PAYMENT: 'Thanh toán',
-  ROOM_STATUS: 'Dọn phòng',    BIKE_ASSIGNED: 'Thuê xe', BIKE_RETURNED: 'Trả xe',
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  if (diff < 60_000)    return 'vừa xong'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} phút trước`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} giờ trước`
-  return new Date(iso).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })
-}
-
-function ActivityRow({ log, onClick }: { log: ActivityItem; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/40">
-      <span className={cn('mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold', EVENT_COLORS[log.event_type] ?? 'bg-muted text-muted-foreground')}>
-        {EVENT_LABELS[log.event_type] ?? log.event_type}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs text-foreground">{log.description}</p>
-        <p className="mt-0.5 text-[10px] text-muted-foreground">
-          {log.actor_name ?? 'Hệ thống'} · {timeAgo(log.created_at)}
-        </p>
-      </div>
-    </button>
-  )
-}
-
 function Chip({ label, value, color, onClick }: { label: string; value: string | number; color: string; onClick?: () => void }) {
   const COLORS: Record<string, string> = {
     green:  'bg-emerald-50 border-emerald-200 text-emerald-700',
@@ -285,6 +246,7 @@ const LEGEND = [
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const isAdminOrAbove = user?.role === 'OWNER' || user?.role === 'ADMIN'
   const navigate = useNavigate()
 
   const [data, setData] = useState<DashboardData>(INITIAL)
@@ -304,7 +266,7 @@ export default function DashboardPage() {
     const todayIso     = new Date().toISOString().slice(0, 10)
     const yesterdayIso = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 
-    const [reportRes, roomsRes, lateRes, noRoomRes, checkedInRes, activityRes] = await Promise.allSettled([
+    const [reportRes, roomsRes, lateRes, noRoomRes, checkedInRes, latePaymentsRes] = await Promise.allSettled([
       revenueApi.dailyReport(),
       roomsApi.list(),
       // late check-ins: CONFIRMED, check_in <= yesterday AND check_out >= today
@@ -313,7 +275,8 @@ export default function DashboardPage() {
       bookingsApi.list({ booking_status: 'CONFIRMED', start_date: todayIso, limit: 100 }),
       // overdue checkouts: all CHECKED_IN (filter check_out_date < today client-side)
       bookingsApi.list({ booking_status: 'CHECKED_IN', limit: 200 }),
-      activityApi.list({ limit: 20 }),
+      // late payments: checkout date reached/passed with balance still owed, persists until paid
+      bookingsApi.latePayments(),
     ])
 
     const checkedIn = checkedInRes.status === 'fulfilled' ? checkedInRes.value : []
@@ -325,7 +288,7 @@ export default function DashboardPage() {
       lateCheckins:     lateRes.status     === 'fulfilled' ? lateRes.value     : [],
       noRoom:           noRoomRes.status   === 'fulfilled' ? noRoomRes.value   : [],
       overdueCheckouts: overdue,
-      activity:         activityRes.status === 'fulfilled' ? activityRes.value : [],
+      latePayments:     latePaymentsRes.status === 'fulfilled' ? latePaymentsRes.value : [],
     })
     setLastRefreshed(new Date())
     setLoading(false)
@@ -341,7 +304,7 @@ export default function DashboardPage() {
   const outstandingItems = useMemo((): BookingSummaryRow[] => {
     if (!data.report) return []
     return [...data.report.arrivals, ...data.report.in_house, ...data.report.departures].filter(
-      (b) => (Number(b.total_price) - Number(b.collected_amount) + Number(b.bike_outstanding)) > 0
+      (b) => (Number(b.total_price) - Number(b.collected_amount) - Number(b.bike_collected)) > 0
     )
   }, [data.report])
 
@@ -389,7 +352,7 @@ export default function DashboardPage() {
         {/* ── Stat chips ── */}
         {data.report && (
           <div className="flex flex-wrap gap-2">
-            {Number(data.report.revenue.total_collected) > 0 && (
+            {isAdminOrAbove && Number(data.report.revenue.total_collected) > 0 && (
               <Chip label="Đã thu" value={formatVND(data.report.revenue.total_collected)} color="green" />
             )}
             <Chip label="Phòng" value={`${data.report.in_house.length}/${data.rooms.length}`} color="green" />
@@ -404,7 +367,7 @@ export default function DashboardPage() {
             {data.report.active_bike_count > 0 && (
               <Chip label="Xe đang thuê" value={data.report.active_bike_count} color="purple" onClick={goBikes} />
             )}
-            {Number(data.report.revenue.outstanding) > 0 && (
+            {isAdminOrAbove && Number(data.report.revenue.outstanding) > 0 && (
               <Chip label="Còn nợ" value={formatVND(data.report.revenue.outstanding)} color="red" onClick={() => goTab('all')} />
             )}
           </div>
@@ -412,6 +375,25 @@ export default function DashboardPage() {
 
         {/* ── Widget grid ── */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+
+          {/* ── Late payment alert (spans full width when present) ── */}
+          {data.latePayments.length > 0 && (
+            <div className="col-span-1 md:col-span-2 lg:col-span-3">
+              <WidgetCard
+                title="Cảnh báo thanh toán trễ"
+                count={data.latePayments.length}
+                icon={Banknote}
+                accent="red"
+                loading={loading}
+                emptyMessage=""
+                onSeeAll={() => goTab('all')}
+              >
+                {data.latePayments.map((row) => (
+                  <SummaryRow key={row.id} row={row} onClick={() => goBooking(row.id)} showCheckout />
+                ))}
+              </WidgetCard>
+            </div>
+          )}
 
           {/* ── Overdue checkout alert (spans full width when present) ── */}
           {data.overdueCheckouts.length > 0 && (
@@ -578,39 +560,6 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* ── Recent Activity Feed ── */}
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Hoạt động gần đây
-            </p>
-            {data.activity.length > 0 && (
-              <button
-                onClick={() => goTab('all')}
-                className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Xem tất cả <ArrowRight className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-
-          {loading ? (
-            <div className="space-y-1">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />
-              ))}
-            </div>
-          ) : data.activity.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Chưa có hoạt động nào</p>
-          ) : (
-            <div className="rounded-xl border bg-card divide-y divide-border/50">
-              {data.activity.map((log) => (
-                <ActivityRow key={log.id} log={log} onClick={() => { if (log.booking_id != null) goBooking(log.booking_id) }} />
-              ))}
-            </div>
-          )}
         </div>
 
         {/* ── Room Map ── */}

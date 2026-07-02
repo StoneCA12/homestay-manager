@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin_or_above
+from app.models.bike_payment import BikePayment as BikePaymentModel
 from app.models.bike_rental import BikeRental as BikeRentalModel
 from app.models.booking import Booking
 from app.models.booking_log import BookingLog
@@ -23,10 +24,13 @@ from app.schemas.booking import (
     BookingUpdate,
     CalendarBooking,
     LateCheckoutSurcharge,
+    RoomChargeCreate,
+    StayExtension,
     WalkInCreate,
 )
 from app.schemas.booking import compute_payment_state
 from app.schemas.payment import PaymentCreate, PaymentOut, PaymentVoid
+from app.schemas.revenue import BookingSummaryRow
 from app.core.activity import log_activity
 
 router = APIRouter()
@@ -251,6 +255,62 @@ def today_bookings(
         .all()
     )
     return [_to_booking_out(b) for b in bookings]
+
+
+@router.get("/late-payments", response_model=list[BookingSummaryRow])
+def late_payments(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Bookings whose checkout date has arrived or passed with an unpaid balance
+    (room + bike charges). Stays flagged day over day until the balance is cleared."""
+    today = date.today()
+    bookings = (
+        db.query(Booking)
+        .filter(
+            Booking.check_out_date <= today,
+            Booking.status.in_([BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT]),
+        )
+        .order_by(Booking.check_out_date)
+        .all()
+    )
+
+    booking_ids = [b.id for b in bookings]
+    active_rentals = (
+        db.query(BikeRentalModel)
+        .filter(
+            BikeRentalModel.booking_id.in_(booking_ids),
+            BikeRentalModel.status == BikeRentalStatus.ACTIVE,
+        )
+        .all()
+    ) if booking_ids else []
+
+    # total_price already includes bike rental cost (folded in at rental creation), so
+    # remaining balance = total_price - collected_amount - bike_collected (bike payments
+    # are still tracked in their own ledger, not booking.collected_amount).
+    bike_by_booking: dict[int, Decimal] = {}
+    for r in active_rentals:
+        collected = bike_by_booking.get(r.booking_id, Decimal(0))
+        bike_by_booking[r.booking_id] = collected + r.collected_amount
+
+    rows = []
+    for b in bookings:
+        bike_collected = bike_by_booking.get(b.id, Decimal(0))
+        if (b.total_price - b.collected_amount - bike_collected) <= 0:
+            continue
+        rows.append(BookingSummaryRow(
+            id=b.id,
+            room_number=b.room.room_number if b.room else None,
+            guest_name=b.guest.full_name,
+            check_in_date=b.check_in_date,
+            check_out_date=b.check_out_date,
+            total_price=b.total_price,
+            collected_amount=b.collected_amount,
+            status=b.status,
+            ota_source=b.ota_source,
+            bike_collected=bike_collected,
+        ))
+    return rows
 
 
 @router.get("/calendar", response_model=list[CalendarBooking])
@@ -575,6 +635,18 @@ def update_booking_status(
     if new_status in [BookingStatus.CANCELLED, BookingStatus.NO_SHOW]:
         for br in booking.bike_rentals:
             if br.status == BikeRentalStatus.ACTIVE:
+                booking.total_price = booking.total_price - br.total_amount
+                if br.collected_amount > 0:
+                    last_method = br.payments[-1].method if br.payments else PaymentMethod.CASH
+                    db.add(BikePaymentModel(
+                        bike_rental_id=br.id,
+                        amount=-br.collected_amount,
+                        method=last_method,
+                        notes="Hoàn tiền tự động do hủy đặt phòng",
+                        recorded_by_id=current_user.id,
+                    ))
+                    br.collected_amount = Decimal("0")
+
                 br.status = BikeRentalStatus.CANCELLED
                 other_active = (
                     db.query(BikeRentalModel)
@@ -835,6 +907,69 @@ def add_late_checkout_surcharge(
     if body.notes:
         desc += f" — {body.notes}"
     _log(db, booking_id, current_user.id, "SURCHARGE", desc)
+
+    db.commit()
+    db.refresh(booking)
+    return _to_booking_out(booking)
+
+
+@router.post("/{booking_id}/charges", response_model=BookingOut)
+def add_room_charge(
+    booking_id: int,
+    body: RoomChargeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add an extra charge to a room's bill (e.g. laundry, drinks) — increases total_price."""
+    booking = db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Đặt phòng không tồn tại")
+    if booking.status != BookingStatus.CHECKED_IN:
+        raise HTTPException(status_code=400, detail="Chỉ có thể thêm phụ phí cho đặt phòng đang lưu trú")
+
+    from datetime import datetime
+    booking.total_price = booking.total_price + body.amount
+    timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+    charge_note = f"[Phụ phí: {body.description} +{body.amount:,.0f} VND — {timestamp} — {current_user.full_name}]"
+    booking.notes = (booking.notes + "\n" + charge_note) if booking.notes else charge_note
+
+    desc = f"Phụ phí +{int(body.amount):,} VND — {body.description}"
+    _log(db, booking_id, current_user.id, "CHARGE", desc)
+
+    db.commit()
+    db.refresh(booking)
+    return _to_booking_out(booking)
+
+
+@router.post("/{booking_id}/extend", response_model=BookingOut)
+def extend_stay(
+    booking_id: int,
+    body: StayExtension,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Extend the checkout date on an active stay. Runs conflict detection against
+    the new checkout date since the room may already be booked by someone else."""
+    booking = db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Đặt phòng không tồn tại")
+    if booking.status != BookingStatus.CHECKED_IN:
+        raise HTTPException(status_code=400, detail="Chỉ có thể gia hạn cho đặt phòng đang lưu trú")
+    if not booking.room_id:
+        raise HTTPException(status_code=400, detail="Đặt phòng chưa được gán phòng")
+
+    new_check_out = booking.check_out_date + timedelta(days=body.extra_days)
+    _check_room_availability(db, booking.room_id, booking.check_in_date, new_check_out, exclude_booking_id=booking.id)
+
+    old_check_out = booking.check_out_date
+    booking.check_out_date = new_check_out
+    booking.total_price = booking.total_price + body.price
+
+    desc = (
+        f"Gia hạn lưu trú +{body.extra_days} đêm "
+        f"({old_check_out} → {new_check_out}) +{int(body.price):,} VND"
+    )
+    _log(db, booking_id, current_user.id, "EXTENDED", desc)
 
     db.commit()
     db.refresh(booking)

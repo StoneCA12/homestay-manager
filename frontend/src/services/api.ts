@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type {
   ActivityItem, Bike, BikeRental, BikeRentalReport,
-  Booking, BookingLog, CalendarBooking, CommissionRate, DailyReport, DailyRevenue,
+  Booking, BookingLog, BookingSummaryRow, CalendarBooking, CommissionRate, DailyReport, DailyRevenue,
   DashboardStats, EndOfDayReport, Expense, GuestLookup, InternalNote, MonthlyRevenue,
   NoteCategory, NoteEntityType, Payment, Room, SearchResults, User,
 } from '../types'
@@ -49,6 +49,7 @@ export const bookingsApi = {
   list: (params?: { booking_status?: string; start_date?: string; end_date?: string; search?: string; archived?: boolean; limit?: number; offset?: number }) =>
     api.get<Booking[]>('/bookings/', { params }).then((r) => r.data),
   today: () => api.get<Booking[]>('/bookings/today').then((r) => r.data),
+  latePayments: () => api.get<BookingSummaryRow[]>('/bookings/late-payments').then((r) => r.data),
   getById: (id: number) => api.get<Booking>(`/bookings/${id}`).then((r) => r.data),
   calendar: (start: string, end: string) =>
     api.get<CalendarBooking[]>('/bookings/calendar', { params: { start, end } }).then((r) => r.data),
@@ -96,6 +97,10 @@ export const bookingsApi = {
     api.post<Booking>(`/bookings/${bookingId}/payments/${paymentId}/void`, { reason }).then((r) => r.data),
   addLateCheckout: (id: number, data: { amount: number; notes?: string }) =>
     api.post<Booking>(`/bookings/${id}/late-checkout`, data).then((r) => r.data),
+  addCharge: (id: number, data: { amount: number; description: string }) =>
+    api.post<Booking>(`/bookings/${id}/charges`, data).then((r) => r.data),
+  extendStay: (id: number, data: { extra_days: number; price: number }) =>
+    api.post<Booking>(`/bookings/${id}/extend`, data).then((r) => r.data),
   walkIn: (data: {
     room_id: number
     guest_name: string
@@ -205,6 +210,7 @@ export const notesApi = {
     api.post<InternalNote>('/notes/', data).then((r) => r.data),
   latestRoomNotes: (categories = 'HOUSEKEEPING,MAINTENANCE') =>
     api.get<InternalNote[]>('/notes/rooms/latest', { params: { categories } }).then((r) => r.data),
+  delete: (id: number) => api.delete(`/notes/${id}`),
 }
 
 export const reportsApi = {

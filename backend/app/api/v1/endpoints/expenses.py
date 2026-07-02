@@ -12,10 +12,8 @@ from app.schemas.expense import ExpenseCreate, ExpenseOut, ExpenseUpdate
 
 router = APIRouter()
 
-_RECEPTIONIST_CATEGORIES = {
-    ExpenseCategory.CLEANING,
-    ExpenseCategory.SUPPLIES,
-    ExpenseCategory.OTHER,
+_OWNER_ONLY_CATEGORIES = {
+    ExpenseCategory.SALARIES,
 }
 
 
@@ -45,7 +43,7 @@ def list_expenses(
     if end_date:
         q = q.filter(Expense.expense_date <= end_date)
     if current_user.role == UserRole.RECEPTIONIST:
-        q = q.filter(Expense.category.in_(list(_RECEPTIONIST_CATEGORIES)))
+        q = q.filter(~Expense.category.in_(list(_OWNER_ONLY_CATEGORIES)))
     return [_to_expense_out(e) for e in q.order_by(Expense.expense_date.desc()).all()]
 
 
@@ -55,7 +53,7 @@ def create_expense(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role == UserRole.RECEPTIONIST and body.category not in _RECEPTIONIST_CATEGORIES:
+    if current_user.role == UserRole.RECEPTIONIST and body.category in _OWNER_ONLY_CATEGORIES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Receptionist cannot record expenses in category '{body.category.value}'",
@@ -88,7 +86,7 @@ def update_expense(
     if current_user.role == UserRole.RECEPTIONIST and expense.recorded_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot edit another user's expense")
     if body.category is not None:
-        if current_user.role == UserRole.RECEPTIONIST and body.category not in _RECEPTIONIST_CATEGORIES:
+        if current_user.role == UserRole.RECEPTIONIST and body.category in _OWNER_ONLY_CATEGORIES:
             raise HTTPException(status_code=403, detail="Receptionist cannot use this category")
         expense.category = body.category
     if body.amount is not None:
@@ -97,6 +95,8 @@ def update_expense(
         expense.expense_date = body.expense_date
     if body.description is not None:
         expense.description = body.description
+    if body.room_id is not None:
+        expense.room_id = body.room_id
     db.commit()
     db.refresh(expense)
     return _to_expense_out(expense)

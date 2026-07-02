@@ -23,7 +23,10 @@ export default function ReceiptPrint({ booking, payments, bikeRentals, onClose }
   const nights = nightCount(booking.check_in_date, booking.check_out_date)
   const activeBikes = bikeRentals.filter((r) => r.status !== 'CANCELLED')
   const bikeTotals = activeBikes.reduce((s, r) => s + Number(r.total_amount), 0)
-  const grandTotal = Number(booking.total_price) + bikeTotals
+  // total_price already includes bike rental cost (folded in when the rental is
+  // created), so back it out here to show a genuine "room + other charges" line.
+  const grandTotal = Number(booking.total_price)
+  const roomAndExtras = grandTotal - bikeTotals
   const grandCollected = Number(booking.collected_amount) + activeBikes.reduce((s, r) => s + Number(r.collected_amount), 0)
   const outstanding = grandTotal - grandCollected
   const printedAt = new Date().toLocaleString('vi-VN')
@@ -63,8 +66,8 @@ export default function ReceiptPrint({ booking, payments, bikeRentals, onClose }
       {/* Charges */}
       <Section label="Chi tiết thanh toán">
         <Row
-          label={`Tiền phòng (${nights} đêm)`}
-          value={formatVND(booking.total_price)}
+          label={`Tiền phòng & phụ phí (${nights} đêm)`}
+          value={formatVND(roomAndExtras)}
           bold
         />
         {activeBikes.map((r) => (

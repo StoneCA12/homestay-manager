@@ -63,6 +63,28 @@ def test_summary_reflects_payments(client, owner, booking):
     assert Decimal(data["outstanding"]) == Decimal("2000000")
 
 
+def test_summary_bike_revenue_is_subset_of_total_not_additive(client, db, owner, booking):
+    from app.models.bike import Bike
+    bike = Bike(name="Wave Alpha", daily_rate=Decimal("100000"))
+    db.add(bike)
+    db.commit()
+    db.refresh(bike)
+
+    client.post("/api/v1/xe-may/rentals", json={
+        "bike_id": bike.id, "booking_id": booking.id,
+        "start_date": str(TODAY), "end_date": str(TODAY + timedelta(days=2)),
+    }, cookies=cookie_for(owner))
+
+    resp = client.get(f"{BASE}/summary", params={
+        "start_date": str(TODAY), "end_date": str(TODAY + timedelta(days=5)),
+    }, cookies=cookie_for(owner))
+    data = resp.json()
+    # booking.total_price started at 3,000,000 and the rental added 200,000 (2 nights x 100k)
+    assert Decimal(data["total_revenue"]) == Decimal("3200000")
+    # bike_revenue is a labeled breakdown of total_revenue, not additive on top of it
+    assert Decimal(data["bike_revenue"]) == Decimal("200000")
+
+
 def test_summary_payment_method_breakdown(client, owner, booking):
     client.post(f"/api/v1/bookings/{booking.id}/payments",
                 json={"amount": "1000000", "method": "CASH"}, cookies=cookie_for(owner))

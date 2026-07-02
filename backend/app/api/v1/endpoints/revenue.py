@@ -219,16 +219,18 @@ def revenue_summary(
     by_room_type = _aggregate_by_room_type(bookings, commission, start_date, end_date)
     occupancy_rate = _compute_occupancy_rate(bookings, total_rooms, start_date, end_date)
 
-    # Bike rental revenue for the same period (by start_date within range)
+    # Bike rental revenue is now folded into total_price/total_revenue above (same
+    # recognition convention as room revenue: by the booking's check-in date, not by
+    # transaction date). These fields are a breakdown of *how much of total_revenue*
+    # came from bike rentals, for the same booking set — not an addition on top of it.
     bike_rentals_in_period = (
         db.query(BikeRentalModel)
         .filter(
+            BikeRentalModel.booking_id.in_(booking_ids),
             BikeRentalModel.status != BikeRentalStatus.CANCELLED,
-            BikeRentalModel.start_date >= start_date,
-            BikeRentalModel.start_date <= end_date,
         )
         .all()
-    )
+    ) if booking_ids else []
     bike_revenue = sum((r.total_amount for r in bike_rentals_in_period), Decimal(0))
     bike_collected = sum((r.collected_amount for r in bike_rentals_in_period), Decimal(0))
 
@@ -323,16 +325,18 @@ def daily_report(
         .all()
     ) if active_booking_ids else []
 
-    # Per-booking bike summary: {booking_id: (names, outstanding)}
+    # Per-booking bike summary: {booking_id: (names, collected)}. total_price already
+    # includes bike rental cost (folded in at rental creation/extension), so this tracks
+    # how much of that has been collected via the separate bike payment ledger.
     bike_by_booking: dict[int, tuple[list[str], Decimal]] = {}
     for r in active_rentals:
-        names, owed = bike_by_booking.get(r.booking_id, ([], Decimal(0)))
+        names, collected = bike_by_booking.get(r.booking_id, ([], Decimal(0)))
         names = names + [r.bike.name]
-        owed = owed + max(Decimal(0), r.total_amount - r.collected_amount)
-        bike_by_booking[r.booking_id] = (names, owed)
+        collected = collected + r.collected_amount
+        bike_by_booking[r.booking_id] = (names, collected)
 
     def _row(b: Booking) -> BookingSummaryRow:
-        names, owed = bike_by_booking.get(b.id, ([], Decimal(0)))
+        names, collected = bike_by_booking.get(b.id, ([], Decimal(0)))
         return BookingSummaryRow(
             id=b.id,
             room_number=b.room.room_number if b.room else None,
@@ -344,7 +348,7 @@ def daily_report(
             status=b.status,
             ota_source=b.ota_source,
             bike_names=names,
-            bike_outstanding=owed,
+            bike_collected=collected,
         )
 
     # Bikes due to be returned today

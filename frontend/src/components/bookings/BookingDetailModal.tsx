@@ -83,6 +83,17 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
   const [lateNotes, setLateNotes] = useState('')
   const [lateSaving, setLateSaving] = useState(false)
   const [lateError, setLateError] = useState('')
+  const [showAddCharge, setShowAddCharge] = useState(false)
+  const [chargeAmount, setChargeAmount] = useState('')
+  const [chargeDescription, setChargeDescription] = useState('')
+  const [chargeSaving, setChargeSaving] = useState(false)
+  const [chargeError, setChargeError] = useState('')
+  const [showExtend, setShowExtend] = useState(false)
+  const [extendDays, setExtendDays] = useState('1')
+  const [extendPrice, setExtendPrice] = useState('')
+  const [extendSaving, setExtendSaving] = useState(false)
+  const [extendError, setExtendError] = useState('')
+  const [extendConflict, setExtendConflict] = useState<ConflictDetail | null>(null)
   const [availableBikes, setAvailableBikes] = useState<Bike[]>([])
   const [addBikeId, setAddBikeId] = useState('')
   const [addStartDate, setAddStartDate] = useState(initialBooking.check_in_date)
@@ -142,9 +153,16 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
   }
 
   const nights      = nightCount(booking.check_in_date, booking.check_out_date)
-  const outstanding = Number(booking.total_price) - Number(booking.collected_amount)
   const isActive    = booking.status === 'CONFIRMED' || booking.status === 'CHECKED_IN'
   const isTerminal  = ['CHECKED_OUT', 'CANCELLED', 'NO_SHOW'].includes(booking.status)
+
+  // total_price already includes room + extras + bike rental cost; bike payments are
+  // still collected via their own ledger, so combine both to know the true remaining balance.
+  const activeBikeRentals = bikeRentals.filter((r) => r.status !== 'CANCELLED')
+  const bikeCollected = activeBikeRentals.reduce((s, r) => s + Number(r.collected_amount), 0)
+  const combinedCollected = Number(booking.collected_amount) + bikeCollected
+  const combinedOutstanding = Number(booking.total_price) - combinedCollected
+  const isFullyPaid = combinedOutstanding <= 0
 
   const currentRoom = useMemo(
     () => rooms.find((r) => r.id === booking.room_id) ?? null,
@@ -262,6 +280,43 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
     }
   }
 
+  const handleAddCharge = async () => {
+    const amt = Number(chargeAmount)
+    if (!amt || amt <= 0) { setChargeError('Nhập số tiền phụ phí'); return }
+    if (!chargeDescription.trim()) { setChargeError('Nhập nội dung phụ phí'); return }
+    setChargeSaving(true); setChargeError('')
+    try {
+      const updated = await bookingsApi.addCharge(booking.id, { amount: amt, description: chargeDescription.trim() })
+      setBooking(updated)
+      setShowAddCharge(false)
+      setChargeAmount(''); setChargeDescription('')
+    } catch (e: any) {
+      setChargeError(e?.response?.data?.detail ?? 'Lỗi thêm phụ phí')
+    } finally {
+      setChargeSaving(false)
+    }
+  }
+
+  const handleExtend = async () => {
+    const days = Number(extendDays)
+    const price = Number(extendPrice)
+    if (!days || days <= 0) { setExtendError('Nhập số đêm gia hạn'); return }
+    if (!price || price <= 0) { setExtendError('Nhập giá gia hạn'); return }
+    setExtendSaving(true); setExtendError(''); setExtendConflict(null)
+    try {
+      const updated = await bookingsApi.extendStay(booking.id, { extra_days: days, price })
+      setBooking(updated)
+      setShowExtend(false)
+      setExtendDays('1'); setExtendPrice('')
+    } catch (e: unknown) {
+      const parsed = parseConflict(e)
+      if (parsed) { setExtendConflict(parsed); setExtendError('') }
+      else { setExtendError(extractErrorMessage(e)); setExtendConflict(null) }
+    } finally {
+      setExtendSaving(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
       <div
@@ -324,19 +379,25 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
 
           {/* Payment */}
           <Section title="Thanh toán">
-            <Row label="Trạng thái">
-              <PaymentStateBadge state={booking.payment_state} />
-            </Row>
-            <Row label="Tổng tiền">
-              <span className="font-semibold text-foreground">{formatVND(booking.total_price)}</span>
-            </Row>
-            <Row label="Đã thu">
-              <span className="font-semibold text-emerald-600">{formatVND(booking.collected_amount)}</span>
-            </Row>
-            {outstanding > 0 && (
-              <Row label="Còn lại">
-                <span className="font-bold text-red-600">{formatVND(outstanding)}</span>
-              </Row>
+            {isFullyPaid ? (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+                ✓ Đã thanh toán đầy đủ
+              </div>
+            ) : (
+              <>
+                <Row label="Trạng thái">
+                  <PaymentStateBadge state={booking.payment_state} />
+                </Row>
+                <Row label="Tổng tiền">
+                  <span className="font-semibold text-foreground">{formatVND(booking.total_price)}</span>
+                </Row>
+                <Row label="Đã thu">
+                  <span className="font-semibold text-emerald-600">{formatVND(combinedCollected)}</span>
+                </Row>
+                <Row label="Còn lại">
+                  <span className="font-bold text-red-600">{formatVND(combinedOutstanding)}</span>
+                </Row>
+              </>
             )}
           </Section>
 
@@ -640,6 +701,22 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
                     🕐 Phụ thu trả phòng muộn
                   </button>
                 )}
+                {booking.status === 'CHECKED_IN' && !showAddCharge && (
+                  <button
+                    onClick={() => { setShowAddCharge(true); setChargeError('') }}
+                    className="w-full rounded-xl border border-purple-300 bg-purple-50 py-2 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                  >
+                    🧺 Thêm phụ phí (giặt ủi, nước uống...)
+                  </button>
+                )}
+                {booking.status === 'CHECKED_IN' && !showExtend && (
+                  <button
+                    onClick={() => { setShowExtend(true); setExtendError(''); setExtendConflict(null) }}
+                    className="w-full rounded-xl border border-blue-300 bg-blue-50 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                  >
+                    📅 Gia hạn lưu trú
+                  </button>
+                )}
                 {/* Cancel trigger — shown for all cancellable statuses */}
                 {booking.status !== 'CHECKED_OUT' && (
                   <button
@@ -664,6 +741,55 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowLateCheckout(false)}>Hủy</Button>
                 <Button size="sm" onClick={handleLateCheckout} disabled={lateSaving} className="flex-1 bg-amber-600 text-white hover:bg-amber-700">
                   {lateSaving ? 'Đang lưu...' : 'Xác nhận'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Add room charge inline form */}
+          {showAddCharge && (
+            <div className="space-y-2 rounded-xl border border-purple-200 bg-purple-50 p-3">
+              <p className="text-xs font-semibold text-purple-700">Thêm phụ phí</p>
+              <Input type="number" placeholder="Số tiền (VND)" value={chargeAmount} onChange={(e) => setChargeAmount(e.target.value)} className="h-9 bg-card" />
+              <Input type="text" placeholder="Nội dung (VD: giặt ủi, nước uống...)" value={chargeDescription} onChange={(e) => setChargeDescription(e.target.value)} className="h-9 bg-card" />
+              {chargeError && <p className="text-xs text-destructive">{chargeError}</p>}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowAddCharge(false)}>Hủy</Button>
+                <Button size="sm" onClick={handleAddCharge} disabled={chargeSaving} className="flex-1 bg-purple-600 text-white hover:bg-purple-700">
+                  {chargeSaving ? 'Đang lưu...' : 'Xác nhận'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Extend stay inline form */}
+          {showExtend && (
+            <div className="space-y-2 rounded-xl border border-blue-200 bg-blue-50 p-3">
+              <p className="text-xs font-semibold text-blue-700">Gia hạn lưu trú</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="mb-1 text-[10px] text-muted-foreground">Số đêm thêm</p>
+                  <Input type="number" min="1" value={extendDays} onChange={(e) => { setExtendDays(e.target.value); setExtendConflict(null) }} className="h-9 bg-card" />
+                </div>
+                <div>
+                  <p className="mb-1 text-[10px] text-muted-foreground">Giá gia hạn (VND)</p>
+                  <Input type="number" placeholder="0" value={extendPrice} onChange={(e) => setExtendPrice(e.target.value)} className="h-9 bg-card" />
+                </div>
+              </div>
+              {Number(extendDays) > 0 && (
+                <p className="text-xs font-medium text-blue-700">
+                  Checkout mới: {new Date(new Date(booking.check_out_date + 'T00:00:00').getTime() + Number(extendDays) * 86_400_000).toLocaleDateString('vi-VN')}
+                </p>
+              )}
+              {extendConflict ? (
+                <ConflictAlert conflict={extendConflict} />
+              ) : extendError ? (
+                <p className="text-xs text-destructive">{extendError}</p>
+              ) : null}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowExtend(false)}>Hủy</Button>
+                <Button size="sm" onClick={handleExtend} disabled={extendSaving} className="flex-1 bg-blue-600 text-white hover:bg-blue-700">
+                  {extendSaving ? 'Đang lưu...' : 'Xác nhận'}
                 </Button>
               </div>
             </div>

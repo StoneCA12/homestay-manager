@@ -201,7 +201,7 @@ export interface BookingSummaryRow {
   status: BookingStatus
   ota_source: OTASource
   bike_names: string[]
-  bike_outstanding: string
+  bike_collected: string
 }
 
 export interface BikeReturnRow {

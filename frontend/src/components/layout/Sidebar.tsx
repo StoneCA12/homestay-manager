@@ -22,7 +22,7 @@ const NAV = [
   { to: '/housekeeping', label: 'nav.housekeeping', icon: Sparkles, minRole: 'RECEPTIONIST' },
   { to: '/xe-may', label: 'nav.bikrentals', icon: Bike, minRole: 'RECEPTIONIST' },
   { to: '/hoat-dong', label: 'nav.activity', icon: ScrollText, minRole: 'RECEPTIONIST' },
-  { to: '/reports', label: 'nav.reports', icon: FileBarChart2, minRole: 'RECEPTIONIST' },
+  { to: '/reports', label: 'nav.reports', icon: FileBarChart2, minRole: 'ADMIN' },
   { to: '/revenue', label: 'nav.revenue', icon: Wallet, minRole: 'ADMIN' },
   { to: '/settings', label: 'nav.settings', icon: SettingsIcon, minRole: 'ADMIN' },
 ] as const

@@ -68,7 +68,10 @@ class BookingSummaryRow(BaseModel):
     status: BookingStatus
     ota_source: OTASource
     bike_names: list[str] = []
-    bike_outstanding: Decimal = Decimal(0)
+    # Sum of collected_amount across this booking's active bike rentals. total_price
+    # already includes bike rental cost, so remaining balance = total_price -
+    # collected_amount - bike_collected (NOT total_price - collected_amount + bike_collected).
+    bike_collected: Decimal = Decimal(0)
 
 
 class BikeReturnRow(BaseModel):

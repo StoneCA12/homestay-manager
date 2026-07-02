@@ -110,6 +110,16 @@ class LateCheckoutSurcharge(BaseModel):
     notes: str | None = None
 
 
+class RoomChargeCreate(BaseModel):
+    amount: Decimal = Field(gt=0, description="Charge amount to add to total_price")
+    description: str = Field(min_length=1, max_length=300, description="What the charge is for, e.g. laundry, drinks")
+
+
+class StayExtension(BaseModel):
+    extra_days: int = Field(gt=0, description="Number of extra nights to add to check_out_date")
+    price: Decimal = Field(gt=0, description="Price charged for the extension, added to total_price")
+
+
 class WalkInCreate(BaseModel):
     room_id: int
     guest_name: str = Field(min_length=1, max_length=150)
