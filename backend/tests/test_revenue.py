@@ -40,7 +40,19 @@ def test_summary_empty_returns_zeros(client, owner):
     assert Decimal(bpm["total"]) == Decimal("0")
 
 
-def test_summary_counts_confirmed_booking(client, owner, booking):
+def test_summary_excludes_confirmed_booking(client, owner, booking):
+    # CONFIRMED = future/unrealized reservation, no stay has started — must not count
+    # as revenue (only CHECKED_IN/CHECKED_OUT stays are realized transactions).
+    resp = client.get(f"{BASE}/summary", params={
+        "start_date": str(TODAY),
+        "end_date": str(TODAY + timedelta(days=5)),
+    }, cookies=cookie_for(owner))
+    data = resp.json()
+    assert data["total_bookings"] == 0
+    assert Decimal(data["total_revenue"]) == Decimal("0")
+
+
+def test_summary_counts_checked_in_booking(client, owner, checked_in_booking):
     resp = client.get(f"{BASE}/summary", params={
         "start_date": str(TODAY),
         "end_date": str(TODAY + timedelta(days=5)),
@@ -52,8 +64,8 @@ def test_summary_counts_confirmed_booking(client, owner, booking):
     assert Decimal(data["outstanding"]) == Decimal("3000000")
 
 
-def test_summary_reflects_payments(client, owner, booking):
-    client.post(f"/api/v1/bookings/{booking.id}/payments",
+def test_summary_reflects_payments(client, owner, checked_in_booking):
+    client.post(f"/api/v1/bookings/{checked_in_booking.id}/payments",
                 json={"amount": "1000000", "method": "CASH"}, cookies=cookie_for(owner))
     resp = client.get(f"{BASE}/summary", params={
         "start_date": str(TODAY), "end_date": str(TODAY + timedelta(days=5)),
@@ -63,7 +75,7 @@ def test_summary_reflects_payments(client, owner, booking):
     assert Decimal(data["outstanding"]) == Decimal("2000000")
 
 
-def test_summary_bike_revenue_is_subset_of_total_not_additive(client, db, owner, booking):
+def test_summary_bike_revenue_is_subset_of_total_not_additive(client, db, owner, checked_in_booking):
     from app.models.bike import Bike
     bike = Bike(name="Wave Alpha", daily_rate=Decimal("100000"))
     db.add(bike)
@@ -71,7 +83,7 @@ def test_summary_bike_revenue_is_subset_of_total_not_additive(client, db, owner,
     db.refresh(bike)
 
     client.post("/api/v1/xe-may/rentals", json={
-        "bike_id": bike.id, "booking_id": booking.id,
+        "bike_id": bike.id, "booking_id": checked_in_booking.id,
         "start_date": str(TODAY), "end_date": str(TODAY + timedelta(days=2)),
     }, cookies=cookie_for(owner))
 
@@ -85,12 +97,12 @@ def test_summary_bike_revenue_is_subset_of_total_not_additive(client, db, owner,
     assert Decimal(data["bike_revenue"]) == Decimal("200000")
 
 
-def test_summary_payment_method_breakdown(client, owner, booking):
-    client.post(f"/api/v1/bookings/{booking.id}/payments",
+def test_summary_payment_method_breakdown(client, owner, checked_in_booking):
+    client.post(f"/api/v1/bookings/{checked_in_booking.id}/payments",
                 json={"amount": "1000000", "method": "CASH"}, cookies=cookie_for(owner))
-    client.post(f"/api/v1/bookings/{booking.id}/payments",
+    client.post(f"/api/v1/bookings/{checked_in_booking.id}/payments",
                 json={"amount": "500000", "method": "BANK_TRANSFER"}, cookies=cookie_for(owner))
-    client.post(f"/api/v1/bookings/{booking.id}/payments",
+    client.post(f"/api/v1/bookings/{checked_in_booking.id}/payments",
                 json={"amount": "200000", "method": "OTA_COLLECTED"}, cookies=cookie_for(owner))
     resp = client.get(f"{BASE}/summary", params={
         "start_date": str(TODAY), "end_date": str(TODAY + timedelta(days=5)),
@@ -102,7 +114,7 @@ def test_summary_payment_method_breakdown(client, owner, booking):
     assert Decimal(bpm["total"]) == Decimal("1700000")
 
 
-def test_summary_date_range_excludes_old_bookings(client, owner, db, booking):
+def test_summary_date_range_excludes_old_bookings(client, owner, db, checked_in_booking):
     from app.models.booking import Booking
     from app.models.enums import BookingStatus, OTASource
     from app.models.guest import Guest
@@ -110,13 +122,13 @@ def test_summary_date_range_excludes_old_bookings(client, owner, db, booking):
     db.add(g); db.flush()
     old_ci = TODAY - timedelta(days=60)
     old_booking = Booking(
-        room_id=booking.room_id,
+        room_id=checked_in_booking.room_id,
         guest_id=g.id,
         check_in_date=old_ci,
         check_out_date=old_ci + timedelta(days=2),
         ota_source=OTASource.DIRECT,
         total_price=Decimal("1000000"),
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.CHECKED_OUT,
     )
     db.add(old_booking); db.commit()
 
@@ -143,7 +155,7 @@ def test_summary_by_source_breakdown(client, owner, db, room, guest):
         check_in_date=TODAY, check_out_date=TODAY + timedelta(days=2),
         ota_source=OTASource.AGODA,
         total_price=Decimal("2000000"),
-        status=BookingStatus.CONFIRMED,
+        status=BookingStatus.CHECKED_IN,
         created_by_id=owner.id,
     )
     db.add(b); db.commit()
@@ -179,7 +191,7 @@ def test_daily_structure(client, owner):
     assert "outstanding" in data
 
 
-def test_daily_counts_todays_bookings(client, owner, booking):
+def test_daily_counts_todays_bookings(client, owner, checked_in_booking):
     resp = client.get(f"{BASE}/daily", cookies=cookie_for(owner))
     data = resp.json()
     assert data["active_bookings"] >= 1

@@ -32,3 +32,4 @@ class ExpenseUpdate(BaseModel):
     amount: Decimal | None = Field(default=None, gt=0)
     expense_date: date | None = None
     description: str | None = None
+    room_id: int | None = None

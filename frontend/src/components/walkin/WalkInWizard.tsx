@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, X } from 'lucide-react'
 import type { Booking, Room } from '../../types'
 import { bookingsApi, guestsApi, roomsApi } from '../../services/api'
-import { formatDate, formatVND } from '../../utils/format'
+import { formatDate, formatVND, toLocalISODate } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,7 +34,7 @@ const PAYMENT_METHODS = [
 const ID_TYPES = ['CCCD', 'CMND', 'Passport', 'Khác']
 
 function toISO(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return toLocalISODate(d)
 }
 
 function addDays(iso: string, n: number): string {

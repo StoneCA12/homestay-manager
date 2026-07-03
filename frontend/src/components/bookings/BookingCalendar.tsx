@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarBooking, Room } from '../../types'
-import { formatDate } from '../../utils/format'
+import { formatDate, toLocalISODate } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -22,7 +22,7 @@ function addDays(d: Date, n: number): Date {
 }
 
 function toISO(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return toLocalISODate(d)
 }
 
 function formatDateVi(iso: string): string {
@@ -115,11 +115,12 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 function DayDetailPanel({
-  date, data, onClose,
+  date, data, onClose, onSelectBooking,
 }: {
   date: string
   data: DayBookings
   onClose: () => void
+  onSelectBooking?: (bookingId: number) => void
 }) {
   const total = data.arrivals.length + data.inHouse.length + data.departures.length
 
@@ -163,7 +164,14 @@ function DayDetailPanel({
                 </div>
                 <div className="space-y-2">
                   {bookings.map((b) => (
-                    <div key={b.id} className="rounded-lg border bg-muted/40 px-3 py-2.5">
+                    <div
+                      key={b.id}
+                      onClick={() => onSelectBooking?.(b.id)}
+                      className={cn(
+                        'rounded-lg border bg-muted/40 px-3 py-2.5',
+                        onSelectBooking && 'cursor-pointer transition-colors hover:border-blue-300 hover:bg-muted'
+                      )}
+                    >
                       <div className="mb-1 flex items-start justify-between gap-1">
                         <span className="text-xs font-bold text-foreground">
                           {b.room_number ? `Phòng ${b.room_number}` : 'Chưa xếp phòng'}
@@ -200,6 +208,8 @@ interface Props {
   yearStart?: Date
   onPrevYear?: () => void
   onNextYear?: () => void
+  onSelectMonth?: (date: Date) => void
+  onOpenBooking?: (bookingId: number) => void
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -208,6 +218,7 @@ export default function BookingCalendar({
   rooms, bookings, monthStart,
   onPrevMonth, onNextMonth,
   yearBookings, yearStart, onPrevYear, onNextYear,
+  onSelectMonth, onOpenBooking,
 }: Props) {
   const { t } = useTranslation()
   const today = toISO(new Date())
@@ -337,7 +348,7 @@ export default function BookingCalendar({
       </div>
 
       {selectedDate && selectedDayData && (
-        <DayDetailPanel date={selectedDate} data={selectedDayData} onClose={() => setSelectedDate(null)} />
+        <DayDetailPanel date={selectedDate} data={selectedDayData} onClose={() => setSelectedDate(null)} onSelectBooking={onOpenBooking} />
       )}
     </div>
   )
@@ -446,13 +457,25 @@ export default function BookingCalendar({
         </div>
 
         {selectedDate && selectedDayData && (
-          <DayDetailPanel date={selectedDate} data={selectedDayData} onClose={() => setSelectedDate(null)} />
+          <DayDetailPanel date={selectedDate} data={selectedDayData} onClose={() => setSelectedDate(null)} onSelectBooking={onOpenBooking} />
         )}
       </div>
     )
   }
 
   // ── Year view ─────────────────────────────────────────────────────────────────
+  const handleSelectMonth = (m: number) => {
+    onSelectMonth?.(new Date(displayYear, m, 1))
+    setSelectedDate(null)
+    setView('grid')
+  }
+
+  const handleSelectDay = (m: number, day: number) => {
+    onSelectMonth?.(new Date(displayYear, m, 1))
+    setSelectedDate(toISO(new Date(displayYear, m, day)))
+    setView('grid')
+  }
+
   const renderYear = () => (
     <div>
       <div className="mb-6 flex items-center gap-3">
@@ -475,7 +498,13 @@ export default function BookingCalendar({
           const mFirstDow = mStart.getDay()
           return (
             <div key={m} className="rounded-xl border bg-card p-3">
-              <p className="mb-2 text-xs font-bold capitalize text-foreground">{mLabel}</p>
+              <button
+                type="button"
+                onClick={() => handleSelectMonth(m)}
+                className="mb-2 w-full text-left text-xs font-bold capitalize text-foreground transition-colors hover:text-blue-600 hover:underline"
+              >
+                {mLabel}
+              </button>
               <div className="grid grid-cols-7 gap-px">
                 {DAY_NAMES_SHORT.map((d) => (
                   <div key={d} className="pb-0.5 text-center text-[9px] font-medium text-muted-foreground">{d}</div>
@@ -486,13 +515,15 @@ export default function BookingCalendar({
                   const count = occupancyMap.get(iso) ?? 0
                   const isToday = iso === today
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={iso}
-                      title={count > 0 ? `${count} đặt phòng` : undefined}
-                      className={cn('flex aspect-square w-full items-center justify-center rounded-sm text-[9px] font-medium transition-colors', occupancyColor(count, totalRooms), isToday && 'ring-1 ring-blue-500')}
+                      title={count > 0 ? `${count} đặt phòng` : mLabel}
+                      onClick={() => handleSelectDay(m, i + 1)}
+                      className={cn('flex aspect-square w-full items-center justify-center rounded-sm text-[9px] font-medium transition-colors hover:ring-2 hover:ring-blue-400', occupancyColor(count, totalRooms), isToday && 'ring-1 ring-blue-500')}
                     >
                       {i + 1}
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -514,6 +545,7 @@ export default function BookingCalendar({
             {label}
           </span>
         ))}
+        <span className="ml-1 text-muted-foreground/60">Nhấn vào tháng hoặc ngày để xem lịch tháng đó</span>
       </div>
     </div>
   )

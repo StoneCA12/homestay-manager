@@ -51,6 +51,8 @@ export const roomsApi = {
 export const bookingsApi = {
   list: (params?: { booking_status?: string; start_date?: string; end_date?: string; search?: string; archived?: boolean; limit?: number; offset?: number }) =>
     api.get<Booking[]>('/bookings/', { params }).then((r) => r.data),
+  count: (params?: { booking_status?: string; start_date?: string; end_date?: string; search?: string; archived?: boolean }) =>
+    api.get<{ total: number }>('/bookings/count', { params }).then((r) => r.data.total),
   today: () => api.get<Booking[]>('/bookings/today').then((r) => r.data),
   latePayments: () => api.get<BookingSummaryRow[]>('/bookings/late-payments').then((r) => r.data),
   getById: (id: number) => api.get<Booking>(`/bookings/${id}`).then((r) => r.data),
@@ -86,8 +88,11 @@ export const bookingsApi = {
     booking_ref?: string
     notes?: string
   }) => api.patch<Booking>(`/bookings/${id}`, data).then((r) => r.data),
-  updateStatus: (id: number, action: string, room_id?: number, reason?: string) =>
-    api.patch<Booking>(`/bookings/${id}/status`, { action, room_id, reason }).then((r) => r.data),
+  updateStatus: (
+    id: number, action: string, room_id?: number, reason?: string,
+    check_in_date?: string, check_out_date?: string,
+  ) =>
+    api.patch<Booking>(`/bookings/${id}/status`, { action, room_id, reason, check_in_date, check_out_date }).then((r) => r.data),
   archive: (id: number): Promise<Booking> =>
     api.post<Booking>(`/bookings/${id}/archive`).then((r) => r.data),
   restore: (id: number): Promise<Booking> =>

@@ -17,7 +17,7 @@ import { bookingsApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import type { Booking, CalendarBooking, PaymentState, Room } from '../../types'
-import { formatDate, formatVND } from '../../utils/format'
+import { formatDate, formatVND, toLocalISODate } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -54,7 +54,7 @@ function firstOfMonth(d: Date): Date {
 }
 
 function toISO(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return toLocalISODate(d)
 }
 
 const TODAY_ISO    = toISO(new Date())
@@ -77,6 +77,8 @@ const BOOKING_FILTER_OPTIONS: ReadonlyArray<{ value: BookingFilter; label: strin
   { value: 'late',        label: 'Đến trễ' },
 ] as const
 
+const TIME_FILTERS: ReadonlySet<BookingFilter> = new Set(['today', 'tomorrow', 'this_week'])
+
 function matchesBookingFilter(b: Booking, f: BookingFilter): boolean {
   switch (f) {
     case 'today':       return b.check_in_date === TODAY_ISO || b.check_out_date === TODAY_ISO
@@ -91,6 +93,21 @@ function matchesBookingFilter(b: Booking, f: BookingFilter): boolean {
     }
     case 'late':        return b.status === 'CONFIRMED' && b.check_in_date < TODAY_ISO
   }
+}
+
+// Windowed page-number list: first 2, last 2, and a window around `current`, with '...' gaps.
+function getPageRange(current: number, total: number): (number | '...')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages = new Set<number>([1, 2, total - 1, total, current - 1, current, current + 1])
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b)
+  const result: (number | '...')[] = []
+  let prev = 0
+  for (const p of sorted) {
+    if (prev && p - prev > 1) result.push('...')
+    result.push(p)
+    prev = p
+  }
+  return result
 }
 
 function isOverdueUnpaid(b: {
@@ -208,8 +225,18 @@ export default function BookingsPage() {
   const toggleFilter = useCallback((filter: string) => {
     setSearchParams((prev) => {
       const cur = new Set(prev.get('filters')?.split(',').filter(Boolean) ?? [])
-      if (cur.has(filter)) cur.delete(filter)
-      else cur.add(filter)
+      if (cur.has(filter)) {
+        cur.delete(filter)
+      } else {
+        // Time-window filters (today/tomorrow/this_week) are mutually exclusive —
+        // a booking list filtered by "today" AND "this week" simultaneously doesn't
+        // mean anything extra over just "today", so selecting one clears the others.
+        // Non-time filters (status, outstanding, etc.) stay independently toggleable.
+        if (TIME_FILTERS.has(filter as BookingFilter)) {
+          for (const tf of TIME_FILTERS) cur.delete(tf)
+        }
+        cur.add(filter)
+      }
       const next = new URLSearchParams(prev)
       if (cur.size === 0) next.delete('filters')
       else next.set('filters', [...cur].join(','))
@@ -232,6 +259,10 @@ export default function BookingsPage() {
   const [yearStart, setYearStart] = useState<Date>(new Date(new Date().getFullYear(), 0, 1))
   const [yearBookings, setYearBookings] = useState<CalendarBooking[]>([])
   const [search, setSearch] = useState('')
+  const [allStartDate, setAllStartDate] = useState('')
+  const [allEndDate, setAllEndDate] = useState('')
+  const [allPage, setAllPage] = useState(1)
+  const [allTotal, setAllTotal] = useState(0)
   const [dialog, setDialog] = useState<DialogState | null>(null)
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null)
   const [undoAction, setUndoAction] = useState<UndoAction | null>(null)
@@ -264,26 +295,49 @@ export default function BookingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const loadBookings = (view: Tab, q?: string) => {
+  // `page` only applies to the 'all' tab, which uses real server-side page-number
+  // pagination (fetch one page at a time, on demand) rather than fetching everything
+  // or an arbitrary capped batch — needed so a full year+ of history stays browsable
+  // without ever pulling more than one page's worth of rows per request.
+  const loadBookings = (view: Tab, q?: string, dateRange?: { start?: string; end?: string }, page?: number) => {
     if (view === 'calendar') return
     setLoading(true)
     setHasMore(false)
-    const req = view === 'today'
+    const startDate = dateRange ? dateRange.start : allStartDate
+    const endDate = dateRange ? dateRange.end : allEndDate
+    const pageNum = view === 'all' ? (page ?? allPage) : 1
+    if (view === 'all') setAllPage(pageNum)
+
+    const listReq = view === 'today'
       ? bookingsApi.today()
       : bookingsApi.list({
           search: (view === 'all' || view === 'archived') ? (q || undefined) : undefined,
+          start_date: view === 'all' ? (startDate || undefined) : undefined,
+          end_date: view === 'all' ? (endDate || undefined) : undefined,
           archived: view === 'archived',
-          limit: view === 'all' ? 200 : PAGE_SIZE,
-          offset: 0,
+          limit: PAGE_SIZE,
+          offset: view === 'all' ? (pageNum - 1) * PAGE_SIZE : 0,
         })
-    req
-      .then((rows) => {
+    const countReq = view === 'all'
+      ? bookingsApi.count({
+          search: q || undefined,
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+          archived: false,
+        })
+      : Promise.resolve(null)
+
+    Promise.all([listReq, countReq])
+      .then(([rows, total]) => {
         setBookings(rows)
-        if (view === 'all' || view === 'archived') setHasMore(rows.length === PAGE_SIZE)
+        if (view === 'archived') setHasMore(rows.length === PAGE_SIZE)
+        if (view === 'all' && total !== null) setAllTotal(total)
       })
       .catch(() => showToast('Không thể tải danh sách đặt phòng.', 'error'))
       .finally(() => setLoading(false))
   }
+
+  const goToPage = (page: number) => loadBookings('all', search, undefined, page)
 
   const loadMore = () => {
     setLoadingMore(true)
@@ -316,6 +370,14 @@ export default function BookingsPage() {
 
   useEffect(() => {
     loadBookings(tab)
+    // loadBookings() is a no-op for the calendar tab (it fetches a paginated list, not
+    // a date-range) — deep-linking straight to ?tab=calendar otherwise leaves
+    // calendarBookings/yearBookings empty until the user clicks the tab button, which
+    // is the only other place these normally get fetched (see switchTab below).
+    if (tab === 'calendar') {
+      loadCalendar(monthStart)
+      loadYearCalendar(yearStart)
+    }
     roomsApi.list().then(setRooms).catch(() => showToast('Không thể tải danh sách phòng.', 'error'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -326,7 +388,7 @@ export default function BookingsPage() {
       loadCalendar(monthStart)
       loadYearCalendar(yearStart)
     } else {
-      loadBookings(newTab, newTab === 'all' ? search : undefined)
+      loadBookings(newTab, newTab === 'all' ? search : undefined, undefined, newTab === 'all' ? 1 : undefined)
     }
   }
 
@@ -344,7 +406,15 @@ export default function BookingsPage() {
 
   const handleSearch = (q: string) => {
     setSearch(q)
-    if (tab === 'all' || tab === 'archived') loadBookings(tab, q)
+    if (tab === 'all' || tab === 'archived') loadBookings(tab, q, undefined, tab === 'all' ? 1 : undefined)
+  }
+
+  const applyDateRange = () => loadBookings('all', search, undefined, 1)
+
+  const clearDateRange = () => {
+    setAllStartDate('')
+    setAllEndDate('')
+    loadBookings('all', search, { start: '', end: '' }, 1)
   }
 
   const handleBookingCreated = (booking: Booking) => {
@@ -486,6 +556,16 @@ export default function BookingsPage() {
     loadCalendar(ms)
   }
 
+  const selectMonth = (date: Date) => {
+    const ms = firstOfMonth(date)
+    setMonthStart(ms)
+    loadCalendar(ms)
+  }
+
+  const openBookingFromCalendar = (bookingId: number) => {
+    bookingsApi.getById(bookingId).then(setDetailBooking).catch(() => showToast('Không thể mở đặt phòng.', 'error'))
+  }
+
   // Builds the overflow ("...") menu items for a booking, shared by table + mobile.
   const menuItems = (b: Booking) => {
     const isEditable = b.status === 'CONFIRMED' || b.status === 'CHECKED_IN'
@@ -521,6 +601,8 @@ export default function BookingsPage() {
     count: filterCounts[opt.value] ?? 0,
   }))
 
+  const allTotalPages = Math.max(1, Math.ceil(allTotal / PAGE_SIZE))
+
   return (
     <Layout>
       <div className="mx-auto max-w-7xl p-4 md:p-8">
@@ -529,8 +611,10 @@ export default function BookingsPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('bookings.title')}</h1>
             {tab !== 'calendar' && (
               <p className="mt-1 text-sm text-muted-foreground">
-                {tab === 'all' && activeFilters.size > 0
-                  ? `${displayedBookings.length} / ${bookings.length} đặt phòng`
+                {tab === 'all'
+                  ? (activeFilters.size > 0
+                      ? `${displayedBookings.length} / ${bookings.length} đặt phòng (trang ${allPage}/${allTotalPages})`
+                      : `${allTotal} đặt phòng · Trang ${allPage}/${allTotalPages}`)
                   : t('bookings.count', { count: bookings.length })}
                 {tab === 'archived' && hasMore ? '+' : ''}
               </p>
@@ -583,6 +667,30 @@ export default function BookingsPage() {
               />
             </div>
           )}
+
+          {tab === 'all' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="date"
+                value={allStartDate}
+                onChange={(e) => setAllStartDate(e.target.value)}
+                className="h-9 w-auto"
+                aria-label="Từ ngày"
+              />
+              <span className="text-sm text-muted-foreground">→</span>
+              <Input
+                type="date"
+                value={allEndDate}
+                onChange={(e) => setAllEndDate(e.target.value)}
+                className="h-9 w-auto"
+                aria-label="Đến ngày"
+              />
+              <Button variant="outline" size="sm" onClick={applyDateRange}>Lọc</Button>
+              {(allStartDate || allEndDate) && (
+                <Button variant="ghost" size="sm" onClick={clearDateRange}>Xóa ngày</Button>
+              )}
+            </div>
+          )}
         </div>
 
         {tab === 'all' && (
@@ -606,6 +714,8 @@ export default function BookingsPage() {
             yearStart={yearStart}
             onPrevYear={prevYear}
             onNextYear={nextYear}
+            onSelectMonth={selectMonth}
+            onOpenBooking={openBookingFromCalendar}
           />
         )}
 
@@ -829,6 +939,40 @@ export default function BookingsPage() {
                 <div className="mt-4 flex justify-center">
                   <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
                     {loadingMore ? t('bookings.loading') : t('bookings.loadMore')}
+                  </Button>
+                </div>
+              )}
+
+              {tab === 'all' && allTotalPages > 1 && (
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-1">
+                  <Button
+                    variant="outline" size="sm"
+                    disabled={allPage <= 1 || loading}
+                    onClick={() => goToPage(allPage - 1)}
+                  >
+                    ‹
+                  </Button>
+                  {getPageRange(allPage, allTotalPages).map((p, i) =>
+                    p === '...' ? (
+                      <span key={`ellipsis-${i}`} className="px-1.5 text-sm text-muted-foreground">…</span>
+                    ) : (
+                      <Button
+                        key={p}
+                        variant={p === allPage ? 'default' : 'outline'}
+                        size="sm"
+                        disabled={loading}
+                        onClick={() => goToPage(p)}
+                      >
+                        {p}
+                      </Button>
+                    )
+                  )}
+                  <Button
+                    variant="outline" size="sm"
+                    disabled={allPage >= allTotalPages || loading}
+                    onClick={() => goToPage(allPage + 1)}
+                  >
+                    ›
                   </Button>
                 </div>
               )}

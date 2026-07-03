@@ -3,7 +3,7 @@ import { CheckCircle2, Sparkles, X } from 'lucide-react'
 import type { Booking, Payment, Room } from '../../types'
 import { bookingsApi, roomsApi } from '../../services/api'
 import { useToast } from '../../contexts/ToastContext'
-import { formatDate, formatVND } from '../../utils/format'
+import { formatDate, formatVND, toLocalISODate } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,6 +35,12 @@ interface WizardState {
   keyIssued: boolean
 }
 
+function addDaysISO(iso: string, n: number): string {
+  const d = new Date(iso)
+  d.setDate(d.getDate() + n)
+  return toLocalISODate(d)
+}
+
 const wizardKey = (id: number) => `checkin_wizard_${id}`
 
 function loadSaved(bookingId: number): WizardState | null {
@@ -63,6 +69,18 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
   const [paymentAmount, setPaymentAmount] = useState<string>(saved?.paymentAmount ?? '')
   const [paymentMethod, setPaymentMethod] = useState<string>(saved?.paymentMethod ?? 'CASH')
   const [keyIssued, setKeyIssued] = useState<boolean>(saved?.keyIssued ?? false)
+  const todayIso = toLocalISODate(new Date())
+  const isEarlyCheckIn = booking.check_in_date > todayIso
+  const originalNights = Math.max(
+    1,
+    Math.round(
+      (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) /
+        86_400_000,
+    ),
+  )
+  const [earlyReason, setEarlyReason] = useState('')
+  const [newCheckInDate, setNewCheckInDate] = useState(todayIso)
+  const [newCheckOutDate, setNewCheckOutDate] = useState(addDaysISO(todayIso, originalNights))
   const [error, setError] = useState('')
   const [completing, setCompleting] = useState(false)
   const [roomConflict, setRoomConflict] = useState<ConflictDetail | null>(null)
@@ -88,13 +106,11 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
     () => rooms.find((r) => r.id === Number(selectedRoomId)),
     [rooms, selectedRoomId],
   )
-  const nights = Math.max(
-    1,
-    Math.round(
-      (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) /
-        86_400_000,
-    ),
-  )
+  // Once an early check-in is confirmed, the effective stay is the adjusted dates;
+  // otherwise it's just the booking's original dates.
+  const nights = isEarlyCheckIn
+    ? Math.max(1, Math.round((new Date(newCheckOutDate).getTime() - new Date(newCheckInDate).getTime()) / 86_400_000))
+    : originalNights
   const outstanding = Number(booking.total_price) - Number(booking.collected_amount)
   const isRoomOccupied = selectedRoom?.display_status === 'OCCUPIED'
 
@@ -123,6 +139,11 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
 
   const goNext = () => {
     setError('')
+    if (step === 1 && isEarlyCheckIn) {
+      if (!earlyReason.trim()) { setError('Vui lòng nhập lý do nhận phòng sớm'); return }
+      if (!newCheckInDate || !newCheckOutDate) { setError('Vui lòng điều chỉnh ngày nhận/trả phòng'); return }
+      if (newCheckOutDate <= newCheckInDate) { setError('Ngày trả phòng phải sau ngày nhận phòng'); return }
+    }
     if (step === 2) {
       if (!selectedRoomId) { setError('Vui lòng chọn phòng'); return }
       if (isRoomOccupied && !roomConflict) {
@@ -144,7 +165,9 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
     setCompleting(true)
     try {
       const roomNum = selectedRoomId ? Number(selectedRoomId) : undefined
-      let updated = await bookingsApi.updateStatus(booking.id, 'check_in', roomNum)
+      let updated = isEarlyCheckIn
+        ? await bookingsApi.updateStatus(booking.id, 'check_in', roomNum, earlyReason.trim(), newCheckInDate, newCheckOutDate)
+        : await bookingsApi.updateStatus(booking.id, 'check_in', roomNum)
 
       if (paymentAmount && Number(paymentAmount) > 0) {
         try {
@@ -227,6 +250,46 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
                   </Fragment>
                 )))}
               </dl>
+
+              {isEarlyCheckIn && (
+                <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                  <p className="text-sm font-semibold text-amber-800">
+                    ⚠️ Khách nhận phòng trước ngày đặt ({formatDate(booking.check_in_date)}) — vui lòng nhập lý do và điều chỉnh ngày nhận/trả phòng
+                  </p>
+                  <div>
+                    <label htmlFor="checkin-early-reason" className={labelCls}>Lý do nhận phòng sớm *</label>
+                    <input
+                      id="checkin-early-reason"
+                      value={earlyReason}
+                      onChange={(e) => { setEarlyReason(e.target.value); setError('') }}
+                      placeholder="VD: Phòng đã dọn xong, khách xin nhận sớm"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="checkin-new-checkin" className={labelCls}>Ngày nhận phòng mới *</label>
+                      <Input
+                        id="checkin-new-checkin"
+                        type="date"
+                        value={newCheckInDate}
+                        onChange={(e) => { setNewCheckInDate(e.target.value); setError('') }}
+                        className="h-9"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="checkin-new-checkout" className={labelCls}>Ngày trả phòng mới *</label>
+                      <Input
+                        id="checkin-new-checkout"
+                        type="date"
+                        value={newCheckOutDate}
+                        onChange={(e) => { setNewCheckOutDate(e.target.value); setError('') }}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {checkInWarnings.length > 0 && (
                 <WarningBanner warnings={checkInWarnings} />
@@ -410,11 +473,11 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
               <div className="rounded-xl border bg-muted/20 p-3 text-sm space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Nhận phòng</span>
-                  <span className="font-medium">{formatDate(booking.check_in_date)}</span>
+                  <span className="font-medium">{formatDate(isEarlyCheckIn ? newCheckInDate : booking.check_in_date)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Trả phòng</span>
-                  <span className="font-medium">{formatDate(booking.check_out_date)}</span>
+                  <span className="font-medium">{formatDate(isEarlyCheckIn ? newCheckOutDate : booking.check_out_date)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Số đêm</span>

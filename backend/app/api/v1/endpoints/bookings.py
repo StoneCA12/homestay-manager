@@ -203,6 +203,27 @@ def _log(db: Session, booking_id: int, user_id: int | None, action: str, descrip
     db.add(BookingLog(booking_id=booking_id, user_id=user_id, action=action, description=description))
 
 
+def _filtered_bookings_query(
+    db: Session,
+    booking_status: BookingStatus | None,
+    start_date: date | None,
+    end_date: date | None,
+    search: str | None,
+    archived: bool,
+):
+    q = db.query(Booking).join(Booking.guest)
+    q = q.filter(Booking.is_archived == archived)
+    if booking_status:
+        q = q.filter(Booking.status == booking_status)
+    if start_date:
+        q = q.filter(Booking.check_out_date >= start_date)
+    if end_date:
+        q = q.filter(Booking.check_in_date <= end_date)
+    if search:
+        q = q.filter(Guest.full_name.ilike(f"%{search}%"))
+    return q
+
+
 @router.get("/", response_model=list[BookingOut])
 def list_bookings(
     booking_status: BookingStatus | None = None,
@@ -219,16 +240,7 @@ def list_bookings(
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
 
-    q = db.query(Booking).join(Booking.guest)
-    q = q.filter(Booking.is_archived == archived)
-    if booking_status:
-        q = q.filter(Booking.status == booking_status)
-    if start_date:
-        q = q.filter(Booking.check_out_date >= start_date)
-    if end_date:
-        q = q.filter(Booking.check_in_date <= end_date)
-    if search:
-        q = q.filter(Guest.full_name.ilike(f"%{search}%"))
+    q = _filtered_bookings_query(db, booking_status, start_date, end_date, search, archived)
     rows = (
         q.order_by(Booking.check_in_date.desc())
         .offset(offset)
@@ -236,6 +248,21 @@ def list_bookings(
         .all()
     )
     return [_to_booking_out(b) for b in rows]
+
+
+@router.get("/count")
+def count_bookings(
+    booking_status: BookingStatus | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    search: str | None = None,
+    archived: bool = False,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> dict[str, int]:
+    q = _filtered_bookings_query(db, booking_status, start_date, end_date, search, archived)
+    total = q.with_entities(func.count(Booking.id)).scalar() or 0
+    return {"total": total}
 
 
 @router.get("/today", response_model=list[BookingOut])
@@ -496,7 +523,8 @@ def walk_in_booking(
     _log(db, booking.id, current_user.id, "STATUS_CHANGED", checkin_desc)
     log_activity(db, "CHECKED_IN", checkin_desc,
                  booking_id=booking.id, room_number=room.room_number,
-                 actor_name=current_user.full_name, user_id=current_user.id)
+                 actor_name=current_user.full_name, guest_name=guest.full_name,
+                 user_id=current_user.id)
 
     db.commit()
     db.refresh(booking)
@@ -610,6 +638,7 @@ def update_booking_status(
         )
 
     # Check-in: must have a room assigned
+    date_adjustment_note = ""
     if body.action == "check_in":
         effective_room_id = body.room_id or booking.room_id
         if effective_room_id is None:
@@ -623,6 +652,31 @@ def update_booking_status(
                 raise HTTPException(status_code=404, detail="Phòng không tồn tại")
             _check_room_availability(db, body.room_id, booking.check_in_date, booking.check_out_date, exclude_booking_id=booking_id)
             booking.room_id = body.room_id
+
+        # Checking in before the booked check_in_date is a mistake unless it's a
+        # deliberate early check-in — require an explicit reason plus adjusted
+        # dates so the record reflects what actually happened, rather than
+        # silently leaving the original (now-inaccurate) check_in_date in place.
+        if date.today() < booking.check_in_date:
+            if not body.reason or not body.reason.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Nhận phòng trước ngày đặt — vui lòng nhập lý do và điều chỉnh ngày nhận/trả phòng",
+                )
+            if not body.check_in_date or not body.check_out_date:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Vui lòng điều chỉnh ngày nhận/trả phòng khi nhận phòng sớm",
+                )
+            if body.check_out_date <= body.check_in_date:
+                raise HTTPException(status_code=400, detail="Ngày trả phòng phải sau ngày nhận phòng")
+            _check_room_availability(db, effective_room_id, body.check_in_date, body.check_out_date, exclude_booking_id=booking_id)
+            date_adjustment_note = (
+                f" — Nhận phòng sớm: {booking.check_in_date} → {body.check_in_date} "
+                f"(trả phòng: {booking.check_out_date} → {body.check_out_date})"
+            )
+            booking.check_in_date = body.check_in_date
+            booking.check_out_date = body.check_out_date
 
     old_status = booking.status
     booking.status = new_status
@@ -676,13 +730,14 @@ def update_booking_status(
     }
     label = _TRANSITION_LABELS.get(body.action, body.action)
     reason_suffix = f" — Lý do: {body.reason}" if body.reason else ""
-    status_desc = f"{label} — {old_status.value} → {new_status.value}{reason_suffix}"
+    status_desc = f"{label} — {old_status.value} → {new_status.value}{reason_suffix}{date_adjustment_note}"
     _log(db, booking_id, current_user.id, "STATUS_CHANGED", status_desc)
     event_type = _ACTION_EVENT.get(body.action, "STATUS_CHANGED")
     room_num = booking.room.room_number if booking.room else None
     log_activity(db, event_type, status_desc,
                  booking_id=booking_id, room_number=room_num,
-                 actor_name=current_user.full_name, user_id=current_user.id)
+                 actor_name=current_user.full_name, guest_name=booking.guest.full_name,
+                 user_id=current_user.id)
 
     db.commit()
     db.refresh(booking)

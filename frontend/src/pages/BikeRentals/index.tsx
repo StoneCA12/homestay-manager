@@ -5,7 +5,7 @@ import { bikesApi, bookingsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import type { Bike, BikeRental, BikeRentalReport, BikeRentalReportRow, Booking } from '../../types'
-import { formatDate, formatVND } from '../../utils/format'
+import { formatDate, formatVND, toLocalISODate } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,7 +55,7 @@ function lastOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0)
 }
 function toISO(d: Date) {
-  return d.toISOString().split('T')[0]
+  return toLocalISODate(d)
 }
 
 // ─── Bike Card ────────────────────────────────────────────────────────────────

@@ -297,6 +297,7 @@ export interface ActivityItem {
   booking_id: number | null
   room_number: string | null
   actor_name: string | null
+  guest_name: string | null
   created_at: string
 }
 

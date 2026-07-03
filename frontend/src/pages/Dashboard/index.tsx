@@ -10,7 +10,7 @@ import { bookingsApi, revenueApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import type { Booking, BookingSummaryRow, BikeReturnRow, DailyReport, Room } from '../../types'
-import { formatVND } from '../../utils/format'
+import { formatVND, toLocalISODate } from '../../utils/format'
 import { cn } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -267,8 +267,8 @@ export default function DashboardPage() {
   const fetchAll = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true)
 
-    const todayIso     = new Date().toISOString().slice(0, 10)
-    const yesterdayIso = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+    const todayIso     = toLocalISODate(new Date())
+    const yesterdayIso = toLocalISODate(new Date(Date.now() - 86_400_000))
 
     const [reportRes, roomsRes, lateRes, noRoomRes, checkedInRes, latePaymentsRes] = await Promise.allSettled([
       revenueApi.dailyReport(),

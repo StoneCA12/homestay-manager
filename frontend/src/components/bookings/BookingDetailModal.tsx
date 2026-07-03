@@ -5,7 +5,7 @@ import type { Bike, BikeRental, Booking, BookingLog, Payment, Room } from '../..
 import { bikesApi, bookingsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import { formatDate, formatVND } from '../../utils/format'
+import { formatDate, formatVND, toLocalISODate } from '../../utils/format'
 import { resolveCheckInWarnings, resolveCheckOutWarnings, resolveBikeWarnings } from '../../lib/bookingWarnings'
 import { parseConflict, extractErrorMessage, type ConflictDetail } from '../../lib/conflictParser'
 import ConflictAlert from './ConflictAlert'
@@ -158,7 +158,7 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
   const combinedCollected = Number(booking.collected_amount) + bikeCollected
   const combinedOutstanding = Number(booking.total_price) - combinedCollected
   const isFullyPaid = combinedOutstanding <= 0
-  const isOverstayed = booking.status === 'CHECKED_IN' && booking.check_out_date < new Date().toISOString().split('T')[0]
+  const isOverstayed = booking.status === 'CHECKED_IN' && booking.check_out_date < toLocalISODate(new Date())
 
   const currentRoom = useMemo(
     () => rooms.find((r) => r.id === booking.room_id) ?? null,

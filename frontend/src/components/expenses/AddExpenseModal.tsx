@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../contexts/AuthContext'
 import { expensesApi } from '../../services/api'
 import type { Expense, ExpenseCategory } from '../../types'
+import { toLocalISODate } from '../../utils/format'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,7 +22,7 @@ const SELECT_CLASS =
   'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
 
 function toISO(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return toLocalISODate(d)
 }
 
 interface Props {

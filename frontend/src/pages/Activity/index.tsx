@@ -7,6 +7,7 @@ import {
 import Layout from '../../components/layout/Layout'
 import { activityApi } from '../../services/api'
 import type { ActivityItem } from '../../types'
+import { toLocalISODate } from '../../utils/format'
 import { cn } from '@/lib/utils'
 
 // ── Event config ────────────────────────────────────────────────
@@ -58,7 +59,7 @@ const FILTER_TYPES: Record<FilterGroup, string[]> = {
 // ── Helpers ─────────────────────────────────────────────────────
 
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  return toLocalISODate(d)
 }
 
 function shiftDate(iso: string, days: number): string {
@@ -251,6 +252,9 @@ export default function ActivityPage() {
                         <span className={cn('text-[11px] font-semibold', cfg.color)}>{cfg.label}</span>
                         {item.room_number && (
                           <span className="ml-1.5 text-[11px] text-muted-foreground">P.{item.room_number}</span>
+                        )}
+                        {item.guest_name && (
+                          <span className="ml-1.5 text-[11px] text-muted-foreground">· {item.guest_name}</span>
                         )}
                         <p className="mt-0.5 text-sm text-foreground leading-snug">{item.description}</p>
                       </div>

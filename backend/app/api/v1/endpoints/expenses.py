@@ -85,9 +85,16 @@ def update_expense(
         raise HTTPException(status_code=404, detail="Expense not found")
     if current_user.role == UserRole.RECEPTIONIST and expense.recorded_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot edit another user's expense")
+    # Block non-owners from touching an owner-only-category expense at all — not just
+    # from changing its category. Without checking the *existing* category too, a
+    # non-owner could PATCH amount/date/description on a SALARIES row while omitting
+    # `category` from the payload, silently bypassing the owner-only restriction.
+    if current_user.role != UserRole.OWNER and (
+        expense.category in _OWNER_ONLY_CATEGORIES
+        or (body.category is not None and body.category in _OWNER_ONLY_CATEGORIES)
+    ):
+        raise HTTPException(status_code=403, detail="Only the owner can access this category")
     if body.category is not None:
-        if current_user.role != UserRole.OWNER and body.category in _OWNER_ONLY_CATEGORIES:
-            raise HTTPException(status_code=403, detail="Only the owner can use this category")
         expense.category = body.category
     if body.amount is not None:
         expense.amount = body.amount
@@ -106,10 +113,12 @@ def update_expense(
 def delete_expense(
     expense_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin_or_above),
+    current_user: User = Depends(require_admin_or_above),
 ):
     expense = db.query(Expense).filter(Expense.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
+    if current_user.role != UserRole.OWNER and expense.category in _OWNER_ONLY_CATEGORIES:
+        raise HTTPException(status_code=403, detail="Only the owner can delete this category")
     db.delete(expense)
     db.commit()

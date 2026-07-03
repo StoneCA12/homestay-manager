@@ -20,6 +20,7 @@ class ActivityItemOut(BaseModel):
     booking_id: int | None
     room_number: str | None
     actor_name: str | None
+    guest_name: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

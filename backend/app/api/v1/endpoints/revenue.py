@@ -30,7 +30,11 @@ from app.schemas.revenue import (
 
 router = APIRouter()
 
-_COUNTED = [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT]
+# Revenue is recognized only for stays that have actually started — CONFIRMED bookings
+# are future/unrealized reservations (no stay has happened, guest could still cancel or
+# no-show) and must not be counted as revenue, only as pipeline/occupancy forecast data
+# elsewhere. Financial totals here must reflect actual completed-or-in-progress stays.
+_COUNTED = [BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT]
 
 # Fallback rates if commission_rates table is empty or source not found
 _FALLBACK_COMMISSION: dict[str, Decimal] = {

@@ -145,3 +145,88 @@ def test_list_date_filter_range(client, owner):
     }, cookies=cookie_for(owner))
     assert len(resp.json()) == 1
     assert resp.json()[0]["category"] == "SUPPLIES"
+
+
+# ── Update ─────────────────────────────────────────────────────────────────
+
+def test_admin_cannot_patch_salary_amount_without_touching_category(client, owner, admin):
+    resp = _expense(client, owner, category="SALARIES", amount="5000000")
+    expense_id = resp.json()["id"]
+    # No `category` field in the payload — this is the exact bypass: omitting
+    # category must not let a non-owner slip past the owner-only-category guard.
+    resp = client.patch(f"{BASE}/{expense_id}", json={"amount": "9999999"}, cookies=cookie_for(admin))
+    assert resp.status_code == 403
+
+    # Confirm the amount was NOT changed server-side.
+    check = client.get(f"{BASE}/", cookies=cookie_for(owner))
+    updated = next(e for e in check.json() if e["id"] == expense_id)
+    assert Decimal(updated["amount"]) == Decimal("5000000")
+
+
+def test_receptionist_cannot_patch_salary_amount_without_touching_category(client, owner, receptionist):
+    resp = _expense(client, owner, category="SALARIES", amount="5000000")
+    expense_id = resp.json()["id"]
+    resp = client.patch(f"{BASE}/{expense_id}", json={"amount": "1"}, cookies=cookie_for(receptionist))
+    assert resp.status_code == 403
+
+
+def test_admin_cannot_recategorize_salary_expense_away(client, owner, admin):
+    resp = _expense(client, owner, category="SALARIES", amount="5000000")
+    expense_id = resp.json()["id"]
+    resp = client.patch(f"{BASE}/{expense_id}", json={"category": "CLEANING"}, cookies=cookie_for(admin))
+    assert resp.status_code == 403
+
+
+def test_admin_cannot_recategorize_expense_to_salary(client, owner, admin):
+    resp = _expense(client, owner, category="CLEANING", amount="100000")
+    expense_id = resp.json()["id"]
+    resp = client.patch(f"{BASE}/{expense_id}", json={"category": "SALARIES"}, cookies=cookie_for(admin))
+    assert resp.status_code == 403
+
+
+def test_owner_can_patch_salary_expense(client, owner):
+    resp = _expense(client, owner, category="SALARIES", amount="5000000")
+    expense_id = resp.json()["id"]
+    resp = client.patch(f"{BASE}/{expense_id}", json={"amount": "6000000"}, cookies=cookie_for(owner))
+    assert resp.status_code == 200
+    assert Decimal(resp.json()["amount"]) == Decimal("6000000")
+
+
+def test_admin_can_patch_non_salary_expense(client, admin):
+    resp = _expense(client, admin, category="CLEANING", amount="100000")
+    expense_id = resp.json()["id"]
+    resp = client.patch(f"{BASE}/{expense_id}", json={"amount": "200000"}, cookies=cookie_for(admin))
+    assert resp.status_code == 200
+
+
+# ── Delete ─────────────────────────────────────────────────────────────────
+
+def test_admin_cannot_delete_salary_expense(client, owner, admin):
+    resp = _expense(client, owner, category="SALARIES", amount="5000000")
+    expense_id = resp.json()["id"]
+    resp = client.delete(f"{BASE}/{expense_id}", cookies=cookie_for(admin))
+    assert resp.status_code == 403
+
+    check = client.get(f"{BASE}/", cookies=cookie_for(owner))
+    assert any(e["id"] == expense_id for e in check.json())
+
+
+def test_receptionist_cannot_delete_any_expense(client, owner, receptionist):
+    resp = _expense(client, owner, category="CLEANING", amount="100000")
+    expense_id = resp.json()["id"]
+    resp = client.delete(f"{BASE}/{expense_id}", cookies=cookie_for(receptionist))
+    assert resp.status_code == 403
+
+
+def test_owner_can_delete_salary_expense(client, owner):
+    resp = _expense(client, owner, category="SALARIES", amount="5000000")
+    expense_id = resp.json()["id"]
+    resp = client.delete(f"{BASE}/{expense_id}", cookies=cookie_for(owner))
+    assert resp.status_code == 204
+
+
+def test_admin_can_delete_non_salary_expense(client, admin):
+    resp = _expense(client, admin, category="CLEANING", amount="100000")
+    expense_id = resp.json()["id"]
+    resp = client.delete(f"{BASE}/{expense_id}", cookies=cookie_for(admin))
+    assert resp.status_code == 204

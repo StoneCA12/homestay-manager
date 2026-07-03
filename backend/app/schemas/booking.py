@@ -97,7 +97,9 @@ class BookingUpdate(BaseModel):
 class BookingStatusUpdate(BaseModel):
     action: BookingAction
     room_id: int | None = None   # Required for check_in when booking has no room assigned
-    reason: str | None = None    # Optional reason for cancel/no_show actions
+    reason: str | None = None    # Optional reason for cancel/no_show; required for early check_in
+    check_in_date: date | None = None    # Required when checking in before the booked check_in_date
+    check_out_date: date | None = None   # Required alongside check_in_date in that case
 
 
 class PaymentUpdate(BaseModel):

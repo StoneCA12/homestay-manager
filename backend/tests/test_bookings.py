@@ -115,6 +115,55 @@ def test_list_returns_all_bookings(client, owner, booking):
     assert len(resp.json()) == 1
 
 
+def test_count_requires_auth(client):
+    assert client.get(f"{BASE}/count").status_code == 401
+
+
+def test_count_matches_list_total(client, owner, db, room, guest):
+    from app.models.booking import Booking
+    from app.models.enums import BookingStatus, OTASource
+    for i in range(3):
+        db.add(Booking(
+            room_id=room.id, guest_id=guest.id,
+            check_in_date=TODAY + timedelta(days=i * 10),
+            check_out_date=TODAY + timedelta(days=i * 10 + 1),
+            ota_source=OTASource.DIRECT,
+            total_price=Decimal("1000000"),
+            status=BookingStatus.CONFIRMED,
+        ))
+    db.commit()
+    resp = client.get(f"{BASE}/count", cookies=cookie_for(owner))
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+
+
+def test_count_respects_search_filter(client, owner, db, room):
+    from app.models.booking import Booking
+    from app.models.enums import BookingStatus, OTASource
+    from app.models.guest import Guest
+    alice = Guest(full_name="Alice Nguyen")
+    bob = Guest(full_name="Bob Tran")
+    db.add_all([alice, bob]); db.flush()
+    db.add_all([
+        Booking(room_id=room.id, guest_id=alice.id, check_in_date=TODAY, check_out_date=TODAY + timedelta(days=1),
+                ota_source=OTASource.DIRECT, total_price=Decimal("100000"), status=BookingStatus.CONFIRMED),
+        Booking(room_id=room.id, guest_id=bob.id, check_in_date=TODAY, check_out_date=TODAY + timedelta(days=1),
+                ota_source=OTASource.DIRECT, total_price=Decimal("100000"), status=BookingStatus.CONFIRMED),
+    ])
+    db.commit()
+    resp = client.get(f"{BASE}/count", params={"search": "Alice"}, cookies=cookie_for(owner))
+    assert resp.json()["total"] == 1
+
+
+def test_count_excludes_archived_by_default(client, owner, db, booking):
+    booking.is_archived = True
+    db.commit()
+    resp = client.get(f"{BASE}/count", cookies=cookie_for(owner))
+    assert resp.json()["total"] == 0
+    resp2 = client.get(f"{BASE}/count", params={"archived": True}, cookies=cookie_for(owner))
+    assert resp2.json()["total"] == 1
+
+
 def test_today_includes_current_booking(client, owner, booking):
     resp = client.get(f"{BASE}/today", cookies=cookie_for(owner))
     ids = [b["id"] for b in resp.json()]
@@ -138,6 +187,103 @@ def test_calendar_includes_cancelled_bookings(client, owner, db, booking):
 # ── Status transitions ─────────────────────────────────────────────────────
 
 def test_check_in(client, owner, booking):
+    resp = _status(client, booking.id, "check_in", owner)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "CHECKED_IN"
+
+
+def test_early_check_in_blocked_without_reason(client, owner, room):
+    resp = _create(client, room.id, owner,
+                    check_in=TODAY + timedelta(days=5), check_out=TODAY + timedelta(days=8))
+    booking_id = resp.json()["id"]
+    resp = client.patch(f"{BASE}/{booking_id}/status", json={"action": "check_in"}, cookies=cookie_for(owner))
+    assert resp.status_code == 400
+    assert "lý do" in resp.json()["detail"].lower()
+
+
+def test_early_check_in_blocked_without_adjusted_dates(client, owner, room):
+    resp = _create(client, room.id, owner,
+                    check_in=TODAY + timedelta(days=5), check_out=TODAY + timedelta(days=8))
+    booking_id = resp.json()["id"]
+    resp = client.patch(
+        f"{BASE}/{booking_id}/status",
+        json={"action": "check_in", "reason": "Khách đến sớm, phòng đã sẵn sàng"},
+        cookies=cookie_for(owner),
+    )
+    assert resp.status_code == 400
+
+
+def test_early_check_in_rejects_checkout_before_checkin(client, owner, room):
+    resp = _create(client, room.id, owner,
+                    check_in=TODAY + timedelta(days=5), check_out=TODAY + timedelta(days=8))
+    booking_id = resp.json()["id"]
+    resp = client.patch(
+        f"{BASE}/{booking_id}/status",
+        json={
+            "action": "check_in",
+            "reason": "Khách đến sớm",
+            "check_in_date": str(TODAY),
+            "check_out_date": str(TODAY - timedelta(days=1)),
+        },
+        cookies=cookie_for(owner),
+    )
+    assert resp.status_code == 400
+
+
+def test_early_check_in_succeeds_with_reason_and_dates(client, owner, room):
+    resp = _create(client, room.id, owner,
+                    check_in=TODAY + timedelta(days=5), check_out=TODAY + timedelta(days=8))
+    booking_id = resp.json()["id"]
+    resp = client.patch(
+        f"{BASE}/{booking_id}/status",
+        json={
+            "action": "check_in",
+            "reason": "Khách đến sớm, phòng đã sẵn sàng",
+            "check_in_date": str(TODAY),
+            "check_out_date": str(TODAY + timedelta(days=3)),
+        },
+        cookies=cookie_for(owner),
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "CHECKED_IN"
+    assert data["check_in_date"] == str(TODAY)
+    assert data["check_out_date"] == str(TODAY + timedelta(days=3))
+
+
+def test_early_check_in_conflict_with_existing_booking(client, owner, db, room, guest):
+    from app.models.booking import Booking
+    from app.models.enums import BookingStatus, OTASource
+
+    # A different booking already occupies the room today.
+    other = Booking(
+        room_id=room.id, guest_id=guest.id,
+        check_in_date=TODAY, check_out_date=TODAY + timedelta(days=2),
+        ota_source=OTASource.DIRECT, total_price=Decimal("500000"),
+        status=BookingStatus.CHECKED_IN,
+    )
+    db.add(other); db.commit()
+
+    resp = _create(client, room.id, owner,
+                    check_in=TODAY + timedelta(days=5), check_out=TODAY + timedelta(days=8))
+    booking_id = resp.json()["id"]
+
+    resp = client.patch(
+        f"{BASE}/{booking_id}/status",
+        json={
+            "action": "check_in",
+            "reason": "Khách đến sớm",
+            "check_in_date": str(TODAY),
+            "check_out_date": str(TODAY + timedelta(days=1)),
+        },
+        cookies=cookie_for(owner),
+    )
+    assert resp.status_code == 409
+
+
+def test_check_in_on_or_after_booked_date_does_not_require_reason(client, owner, booking):
+    # booking fixture's check_in_date == TODAY — not "early", so no reason/date
+    # adjustment should be required (regression check against the new validation).
     resp = _status(client, booking.id, "check_in", owner)
     assert resp.status_code == 200
     assert resp.json()["status"] == "CHECKED_IN"

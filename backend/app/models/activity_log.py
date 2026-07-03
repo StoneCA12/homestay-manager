@@ -16,6 +16,7 @@ class ActivityLog(Base):
     booking_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
     room_number: Mapped[str | None] = mapped_column(nullable=True)   # denormalized
     actor_name: Mapped[str | None] = mapped_column(nullable=True)    # denormalized
+    guest_name: Mapped[str | None] = mapped_column(nullable=True)    # denormalized
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

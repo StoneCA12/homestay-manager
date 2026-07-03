@@ -7,7 +7,7 @@ import { expensesApi, revenueApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import type { Expense, MonthlyRevenue } from '../../types'
-import { formatVND } from '../../utils/format'
+import { formatVND, toLocalISODate } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,7 +55,7 @@ function DeleteConfirmDialog({ expense, onConfirm, onCancel }: { expense: Expens
 type Tab = 'revenue' | 'expenses'
 
 function toISO(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return toLocalISODate(d)
 }
 
 function defaultRange(): { start: string; end: string } {

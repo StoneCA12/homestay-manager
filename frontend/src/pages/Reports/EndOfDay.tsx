@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Printer, RefreshCw } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
 import { reportsApi } from '../../services/api'
-import { formatVND } from '../../utils/format'
+import { formatVND, toLocalISODate } from '../../utils/format'
 import type {
   EndOfDayReport, EodBookingRow, EodOutstanding, EodPaymentRow,
 } from '../../types'
@@ -15,7 +15,7 @@ function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return toLocalISODate(new Date())
 }
 
 // ── Sub-components (module level) ─────────────────────────────────────────────
