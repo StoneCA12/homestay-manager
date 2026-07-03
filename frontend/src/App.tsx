@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
+import { useToast } from './contexts/ToastContext'
 import DashboardPage from './pages/Dashboard'
 import BookingsPage from './pages/Bookings'
 import BikeRentalsPage from './pages/BikeRentals'
@@ -21,9 +22,17 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
 function RoleRoute({ children, roles }: { children: ReactNode; roles: UserRole[] }) {
   const { user, isLoading } = useAuth()
+  const { showToast } = useToast()
+  const denied = !isLoading && !!user && !roles.includes(user.role)
+
+  useEffect(() => {
+    if (denied) showToast('Bạn không có quyền truy cập trang này.', 'error')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [denied])
+
   if (isLoading) return <Spinner />
   if (!user) return <Navigate to="/login" replace />
-  if (!roles.includes(user.role)) return <Navigate to="/" replace />
+  if (denied) return <Navigate to="/" replace />
   return <>{children}</>
 }
 
@@ -67,11 +76,11 @@ export default function App() {
       />
       <Route
         path="/settings"
-        element={<ProtectedRoute><SettingsPage /></ProtectedRoute>}
+        element={<RoleRoute roles={['OWNER', 'ADMIN']}><SettingsPage /></RoleRoute>}
       />
       <Route
         path="/hoat-dong"
-        element={<ProtectedRoute><ActivityPage /></ProtectedRoute>}
+        element={<RoleRoute roles={['OWNER']}><ActivityPage /></RoleRoute>}
       />
       <Route
         path="/reports"

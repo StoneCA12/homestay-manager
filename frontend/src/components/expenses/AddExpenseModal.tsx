@@ -13,8 +13,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-const ALL_CATEGORIES: ExpenseCategory[] = ['CLEANING', 'SUPPLIES', 'OTHER', 'UTILITIES', 'SALARIES', 'MAINTENANCE']
-const RECEPTIONIST_CATEGORIES: ExpenseCategory[] = ['CLEANING', 'SUPPLIES', 'OTHER', 'UTILITIES', 'MAINTENANCE']
+// "Other" always sorts last across every role's dropdown — it's the catch-all option.
+const OWNER_CATEGORIES: ExpenseCategory[] = ['CLEANING', 'SUPPLIES', 'UTILITIES', 'MAINTENANCE', 'SALARIES', 'OTHER']
+const NON_OWNER_CATEGORIES: ExpenseCategory[] = ['CLEANING', 'SUPPLIES', 'UTILITIES', 'MAINTENANCE', 'OTHER']
 
 const SELECT_CLASS =
   'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
@@ -32,8 +33,8 @@ interface Props {
 export default function AddExpenseModal({ onClose, onSaved, editingExpense }: Props) {
   const { t } = useTranslation()
   const { user } = useAuth()
-  const isReceptionist = user?.role === 'RECEPTIONIST'
-  const allowedCategories = isReceptionist ? RECEPTIONIST_CATEGORIES : ALL_CATEGORIES
+  const isOwner = user?.role === 'OWNER'
+  const allowedCategories = isOwner ? OWNER_CATEGORIES : NON_OWNER_CATEGORIES
   const isEdit = !!editingExpense
 
   const [category, setCategory] = useState<ExpenseCategory>(
@@ -86,8 +87,8 @@ export default function AddExpenseModal({ onClose, onSaved, editingExpense }: Pr
 
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
           <div className="space-y-1">
-            <Label className="text-xs">{t('addExpense.category')}</Label>
-            <select value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)} className={SELECT_CLASS}>
+            <Label htmlFor="expense-category" className="text-xs">{t('addExpense.category')}</Label>
+            <select id="expense-category" value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)} className={SELECT_CLASS}>
               {allowedCategories.map((c) => (
                 <option key={c} value={c}>{t(`expenseCategory.${c}` as any)}</option>
               ))}
@@ -95,18 +96,18 @@ export default function AddExpenseModal({ onClose, onSaved, editingExpense }: Pr
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">{t('addExpense.amount')}</Label>
-            <Input type="number" min="1" required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="h-9" />
+            <Label htmlFor="expense-amount" className="text-xs">{t('addExpense.amount')}</Label>
+            <Input id="expense-amount" type="number" min="1" required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="h-9" />
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">{t('addExpense.date')}</Label>
-            <Input type="date" required value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className="h-9" />
+            <Label htmlFor="expense-date" className="text-xs">{t('addExpense.date')}</Label>
+            <Input id="expense-date" type="date" required value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className="h-9" />
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">{t('addExpense.description')}</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('addExpense.descriptionPlaceholder')} className="h-9" />
+            <Label htmlFor="expense-description" className="text-xs">{t('addExpense.description')}</Label>
+            <Input id="expense-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('addExpense.descriptionPlaceholder')} className="h-9" />
           </div>
 
           {error && (

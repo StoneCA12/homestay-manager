@@ -271,7 +271,7 @@ def late_payments(
             Booking.check_out_date <= today,
             Booking.status.in_([BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT]),
         )
-        .order_by(Booking.check_out_date)
+        .order_by(Booking.check_out_date.desc())
         .all()
     )
 

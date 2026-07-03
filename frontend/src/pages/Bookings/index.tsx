@@ -250,7 +250,7 @@ export default function BookingsPage() {
     if (!state) return
 
     if (state.openBookingId) {
-      bookingsApi.getById(state.openBookingId).then(setDetailBooking).catch(() => {})
+      bookingsApi.getById(state.openBookingId).then(setDetailBooking).catch(() => showToast('Không thể mở đặt phòng.', 'error'))
     }
 
     if (state.fabTab) {
@@ -281,7 +281,7 @@ export default function BookingsPage() {
         setBookings(rows)
         if (view === 'all' || view === 'archived') setHasMore(rows.length === PAGE_SIZE)
       })
-      .catch(() => {})
+      .catch(() => showToast('Không thể tải danh sách đặt phòng.', 'error'))
       .finally(() => setLoading(false))
   }
 
@@ -298,25 +298,25 @@ export default function BookingsPage() {
         setBookings((prev) => [...prev, ...rows])
         setHasMore(rows.length === PAGE_SIZE)
       })
-      .catch(() => {})
+      .catch(() => showToast('Không thể tải thêm đặt phòng.', 'error'))
       .finally(() => setLoadingMore(false))
   }
 
   const loadCalendar = (ms: Date) => {
     const start = toISO(ms)
     const end = toISO(new Date(ms.getFullYear(), ms.getMonth() + 1, 1))
-    bookingsApi.calendar(start, end).then(setCalendarBookings).catch(() => {})
+    bookingsApi.calendar(start, end).then(setCalendarBookings).catch(() => showToast('Không thể tải lịch đặt phòng.', 'error'))
   }
 
   const loadYearCalendar = (ys: Date) => {
     const start = toISO(ys)
     const end = toISO(new Date(ys.getFullYear() + 1, 0, 1))
-    bookingsApi.calendar(start, end).then(setYearBookings).catch(() => {})
+    bookingsApi.calendar(start, end).then(setYearBookings).catch(() => showToast('Không thể tải lịch năm.', 'error'))
   }
 
   useEffect(() => {
     loadBookings(tab)
-    roomsApi.list().then(setRooms).catch(() => {})
+    roomsApi.list().then(setRooms).catch(() => showToast('Không thể tải danh sách phòng.', 'error'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -400,6 +400,24 @@ export default function BookingsPage() {
         onConfirm: () => { setDialog(null); doAction(booking, 'cancel') },
       })
       return
+    }
+    if (action === 'check_out') {
+      const balance = Number(booking.total_price) - Number(booking.collected_amount)
+      if (balance > 0) {
+        setDialog({
+          title: t('bookings.dialog.checkOutBalanceTitle'),
+          message: t('bookings.dialog.checkOutBalanceMessage', {
+            guest: booking.guest_name,
+            room: booking.room_number ?? '?',
+            amount: formatVND(balance),
+          }),
+          confirmLabel: t('bookings.dialog.checkOutBalanceConfirm'),
+          cancelLabel: t('bookings.dialog.checkOutBalanceDismiss'),
+          confirmDanger: true,
+          onConfirm: () => { setDialog(null); doAction(booking, 'check_out') },
+        })
+        return
+      }
     }
     doAction(booking, action)
   }

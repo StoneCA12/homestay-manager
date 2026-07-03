@@ -15,6 +15,9 @@ api.interceptors.response.use(
   (r) => r,
   (error) => {
     if (error.response?.status === 401 && window.location.pathname !== '/login') {
+      // window.location.href triggers a full reload, wiping any in-app toast before it
+      // could render — stash a flag the Login page reads on mount instead.
+      sessionStorage.setItem('session_expired', '1')
       window.location.href = '/login'
     }
     return Promise.reject(error)
@@ -95,8 +98,6 @@ export const bookingsApi = {
     api.post<Booking>(`/bookings/${id}/payments`, data).then((r) => r.data),
   voidPayment: (bookingId: number, paymentId: number, reason: string) =>
     api.post<Booking>(`/bookings/${bookingId}/payments/${paymentId}/void`, { reason }).then((r) => r.data),
-  addLateCheckout: (id: number, data: { amount: number; notes?: string }) =>
-    api.post<Booking>(`/bookings/${id}/late-checkout`, data).then((r) => r.data),
   addCharge: (id: number, data: { amount: number; description: string }) =>
     api.post<Booking>(`/bookings/${id}/charges`, data).then((r) => r.data),
   extendStay: (id: number, data: { extra_days: number; price: number }) =>

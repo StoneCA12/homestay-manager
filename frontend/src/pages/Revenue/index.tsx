@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
 import AddExpenseModal from '../../components/expenses/AddExpenseModal'
-import DailyReportPanel from '../../components/revenue/DailyReportPanel'
 import Layout from '../../components/layout/Layout'
 import { expensesApi, revenueApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import type { DailyReport, Expense, MonthlyRevenue } from '../../types'
+import type { Expense, MonthlyRevenue } from '../../types'
 import { formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -53,7 +52,7 @@ function DeleteConfirmDialog({ expense, onConfirm, onCancel }: { expense: Expens
   )
 }
 
-type Tab = 'report' | 'revenue' | 'expenses'
+type Tab = 'revenue' | 'expenses'
 
 function toISO(d: Date): string {
   return d.toISOString().split('T')[0]
@@ -86,17 +85,12 @@ export default function RevenuePage() {
   const isOwner = user?.role === 'OWNER'
   const isAdminOrAbove = user?.role === 'OWNER' || user?.role === 'ADMIN'
 
-  // OWNER: all 3 tabs  |  ADMIN: report + expenses  |  RECEPTIONIST: report only
-  const visibleTabs: Tab[] = isOwner
-    ? ['report', 'revenue', 'expenses']
-    : isAdminOrAbove
-      ? ['report', 'expenses']
-      : ['report']
+  // OWNER: revenue + expenses  |  ADMIN: expenses only (the daily arrivals/departures
+  // view already lives on the Dashboard and the richer End-of-Day report, so this page
+  // no longer duplicates it)
+  const visibleTabs: Tab[] = isOwner ? ['revenue', 'expenses'] : ['expenses']
 
-  const [tab, setTab] = useState<Tab>('report')
-  const [report, setReport] = useState<DailyReport | null>(null)
-  const [reportDate, setReportDate] = useState(toISO(new Date()))
-  const [reportLoading, setReportLoading] = useState(true)
+  const [tab, setTab] = useState<Tab>(isOwner ? 'revenue' : 'expenses')
 
   const range = defaultRange()
   const [startDate, setStartDate] = useState(range.start)
@@ -112,7 +106,11 @@ export default function RevenuePage() {
   const [deleteDialog, setDeleteDialog] = useState<Expense | null>(null)
 
   useEffect(() => {
-    revenueApi.dailyReport(reportDate).then(setReport).finally(() => setReportLoading(false))
+    if (tab === 'revenue') loadSummary()
+    if (tab === 'expenses') {
+      loadExpenses()
+      if (isOwner) loadSummary()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -152,12 +150,6 @@ export default function RevenuePage() {
     } catch {
       showToast(t('revenue.expenses.toast.deleteFailed'), 'error')
     }
-  }
-
-  const handleReportDateChange = (d: string) => {
-    setReportDate(d)
-    setReportLoading(true)
-    revenueApi.dailyReport(d).then(setReport).finally(() => setReportLoading(false))
   }
 
   const totalExpenses = expenses.reduce((acc, e) => acc + Number(e.amount), 0)
@@ -225,32 +217,21 @@ export default function RevenuePage() {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 inline-flex w-fit gap-1 rounded-lg bg-muted p-1 print:hidden">
-          {visibleTabs.map((tabKey) => (
-            <button
-              key={tabKey}
-              onClick={() => switchTab(tabKey)}
-              className={cn(
-                'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
-                tab === tabKey ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tabKey === 'report' ? t('revenue.tabs.dailyReport') : tabKey === 'revenue' ? t('revenue.tabs.revenue') : t('revenue.tabs.expenses')}
-            </button>
-          ))}
-        </div>
-
-        {/* Daily Report tab */}
-        {tab === 'report' && (
-          reportLoading
-            ? <p className="text-sm text-muted-foreground">{t('bookings.loading')}</p>
-            : report && (
-              <DailyReportPanel
-                report={report}
-                selectedDate={reportDate}
-                onDateChange={handleReportDateChange}
-              />
-            )
+        {visibleTabs.length > 1 && (
+          <div className="mb-6 inline-flex w-fit gap-1 rounded-lg bg-muted p-1 print:hidden">
+            {visibleTabs.map((tabKey) => (
+              <button
+                key={tabKey}
+                onClick={() => switchTab(tabKey)}
+                className={cn(
+                  'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+                  tab === tabKey ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tabKey === 'revenue' ? t('revenue.tabs.revenue') : t('revenue.tabs.expenses')}
+              </button>
+            ))}
+          </div>
         )}
 
         {/* Date range picker */}

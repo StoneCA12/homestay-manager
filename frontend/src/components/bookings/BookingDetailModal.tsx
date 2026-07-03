@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X } from 'lucide-react'
+import { CalendarPlus, Receipt, X } from 'lucide-react'
 import type { Bike, BikeRental, Booking, BookingLog, Payment, Room } from '../../types'
 import { bikesApi, bookingsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
 import { formatDate, formatVND } from '../../utils/format'
 import { resolveCheckInWarnings, resolveCheckOutWarnings, resolveBikeWarnings } from '../../lib/bookingWarnings'
 import { parseConflict, extractErrorMessage, type ConflictDetail } from '../../lib/conflictParser'
 import ConflictAlert from './ConflictAlert'
 import ReceiptPrint from '../print/ReceiptPrint'
 import OD1Print from '../print/OD1Print'
-import ConfirmationPrint from '../print/ConfirmationPrint'
 import BookingStatusBadge from './BookingStatusBadge'
 import WarningBanner from './WarningBanner'
 import InternalNotesFeed from '../notes/InternalNotesFeed'
@@ -68,6 +68,7 @@ interface Props {
 export default function BookingDetailModal({ booking: initialBooking, rooms = [], onClose, onEdit, onAction, onPay, onStatusChanged, onArchived, onRestored }: Props) {
   const { t } = useTranslation()
   const { user } = useAuth()
+  const { showToast } = useToast()
   const canViewLogs = user?.role === 'OWNER' || user?.role === 'ADMIN'
   const [booking, setBooking] = useState<Booking>(initialBooking)
   const [payments, setPayments] = useState<Payment[]>([])
@@ -77,12 +78,6 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
   const [showAddBikeRental, setShowAddBikeRental] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
   const [showOD1, setShowOD1] = useState(false)
-  const [showConfirmation, setShowConfirmation] = useState(false)
-  const [showLateCheckout, setShowLateCheckout] = useState(false)
-  const [lateAmount, setLateAmount] = useState('')
-  const [lateNotes, setLateNotes] = useState('')
-  const [lateSaving, setLateSaving] = useState(false)
-  const [lateError, setLateError] = useState('')
   const [showAddCharge, setShowAddCharge] = useState(false)
   const [chargeAmount, setChargeAmount] = useState('')
   const [chargeDescription, setChargeDescription] = useState('')
@@ -130,7 +125,7 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
       setPayments(pmts)
       setBikeRentals(rentals)
       if (logEntries) setLogs(logEntries)
-    }).catch(() => {}).finally(() => setLoadingPayments(false))
+    }).catch(() => showToast('Không thể tải đầy đủ thông tin đặt phòng.', 'error')).finally(() => setLoadingPayments(false))
   }, [booking.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleVoidPayment = async () => {
@@ -163,6 +158,7 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
   const combinedCollected = Number(booking.collected_amount) + bikeCollected
   const combinedOutstanding = Number(booking.total_price) - combinedCollected
   const isFullyPaid = combinedOutstanding <= 0
+  const isOverstayed = booking.status === 'CHECKED_IN' && booking.check_out_date < new Date().toISOString().split('T')[0]
 
   const currentRoom = useMemo(
     () => rooms.find((r) => r.id === booking.room_id) ?? null,
@@ -183,7 +179,7 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
 
   const openAddBikeRental = () => {
     if (availableBikes.length === 0) {
-      bikesApi.listBikes().then(setAvailableBikes).catch(() => {})
+      bikesApi.listBikes().then(setAvailableBikes).catch(() => showToast('Không thể tải danh sách xe.', 'error'))
     }
     setAddBikeId('')
     setAddStartDate(booking.check_in_date)
@@ -264,22 +260,6 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
   const selectedAddBike = availableBikes.find((b) => b.id === Number(addBikeId))
   const addPreview = selectedAddBike ? Number(selectedAddBike.daily_rate) * addDays : 0
 
-  const handleLateCheckout = async () => {
-    const amt = Number(lateAmount)
-    if (!amt || amt <= 0) { setLateError('Nhập số tiền phụ thu'); return }
-    setLateSaving(true); setLateError('')
-    try {
-      const updated = await bookingsApi.addLateCheckout(booking.id, { amount: amt, notes: lateNotes || undefined })
-      setBooking(updated)
-      setShowLateCheckout(false)
-      setLateAmount(''); setLateNotes('')
-    } catch (e: any) {
-      setLateError(e?.response?.data?.detail ?? 'Lỗi thêm phụ thu')
-    } finally {
-      setLateSaving(false)
-    }
-  }
-
   const handleAddCharge = async () => {
     const amt = Number(chargeAmount)
     if (!amt || amt <= 0) { setChargeError('Nhập số tiền phụ phí'); return }
@@ -318,10 +298,11 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
-      <div
-        className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-card shadow-2xl sm:max-w-lg sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
+    <>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent
+        showClose={false}
+        className="left-0 right-0 top-auto bottom-0 flex max-h-[92vh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-2xl border-0 bg-card p-0 shadow-2xl sm:left-1/2 sm:right-auto sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border"
       >
         {/* Header */}
         <div className="flex flex-shrink-0 items-start justify-between border-b border-border px-5 pb-4 pt-5">
@@ -334,13 +315,42 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
               <p className="mt-1 text-xs text-muted-foreground">Mã: {booking.booking_ref}</p>
             )}
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} className="ml-2 shrink-0 text-muted-foreground">
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Đóng" className="ml-2 shrink-0 text-muted-foreground">
+            <X aria-hidden="true" className="h-4 w-4" />
           </Button>
         </div>
 
         {/* Scrollable body */}
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+
+          {/* Overstay banner — requires an explicit staff decision, not just a passive warning */}
+          {isOverstayed && (
+            <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4">
+              <p className="text-sm font-bold text-red-700">
+                ⏰ Quá hạn trả phòng — ngày trả là {formatDate(booking.check_out_date)}
+              </p>
+              <p className="mt-1 text-xs text-red-600">
+                Khách đã ở quá ngày trả phòng dự kiến. Vui lòng trả phòng ngay hoặc gia hạn lưu trú cho khách.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1 bg-red-600 text-white hover:bg-red-700"
+                  onClick={() => { onClose(); onAction(booking, 'check_out') }}
+                >
+                  Trả phòng ngay
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 border-red-300 text-red-700 hover:bg-red-100"
+                  onClick={() => { setShowExtend(true); setExtendError(''); setExtendConflict(null) }}
+                >
+                  Gia hạn lưu trú
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Dates + room */}
           <Section title="Thông tin phòng">
@@ -476,11 +486,11 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
                   )}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <p className="mb-1 text-[10px] text-muted-foreground">Ngày nhận</p>
+                      <p className="mb-1 text-xs text-muted-foreground">Ngày nhận</p>
                       <Input type="date" value={addStartDate} onChange={(e) => { setAddStartDate(e.target.value); setAddConflict(null) }} className="h-9 bg-card" />
                     </div>
                     <div>
-                      <p className="mb-1 text-[10px] text-muted-foreground">Ngày trả</p>
+                      <p className="mb-1 text-xs text-muted-foreground">Ngày trả</p>
                       <Input type="date" value={addEndDate} onChange={(e) => { setAddEndDate(e.target.value); setAddConflict(null) }} className="h-9 bg-card" />
                     </div>
                   </div>
@@ -590,7 +600,7 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
                     <li key={entry.id} className="pl-4 pb-3 last:pb-0">
                       <span className="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-muted-foreground/40" />
                       <p className="text-xs font-medium text-foreground leading-snug">{entry.description}</p>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {new Date(entry.created_at).toLocaleString('vi-VN', {
                           day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                         })}
@@ -693,28 +703,20 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
                     Sửa
                   </Button>
                 )}
-                {booking.status === 'CHECKED_IN' && !showLateCheckout && (
-                  <button
-                    onClick={() => { setShowLateCheckout(true); setLateError('') }}
-                    className="w-full rounded-xl border border-amber-300 bg-amber-50 py-2 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100"
-                  >
-                    🕐 Phụ thu trả phòng muộn
-                  </button>
-                )}
                 {booking.status === 'CHECKED_IN' && !showAddCharge && (
                   <button
                     onClick={() => { setShowAddCharge(true); setChargeError('') }}
-                    className="w-full rounded-xl border border-purple-300 bg-purple-50 py-2 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-purple-300 bg-purple-50 py-2 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
                   >
-                    🧺 Thêm phụ phí (giặt ủi, nước uống...)
+                    <Receipt aria-hidden="true" className="h-3.5 w-3.5" /> Thêm phụ phí (giặt ủi, nước uống...)
                   </button>
                 )}
                 {booking.status === 'CHECKED_IN' && !showExtend && (
                   <button
                     onClick={() => { setShowExtend(true); setExtendError(''); setExtendConflict(null) }}
-                    className="w-full rounded-xl border border-blue-300 bg-blue-50 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
                   >
-                    📅 Gia hạn lưu trú
+                    <CalendarPlus aria-hidden="true" className="h-3.5 w-3.5" /> Gia hạn lưu trú
                   </button>
                 )}
                 {/* Cancel trigger — shown for all cancellable statuses */}
@@ -728,22 +730,6 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
                 )}
               </div>
             </>
-          )}
-
-          {/* Late checkout inline form */}
-          {showLateCheckout && (
-            <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
-              <p className="text-xs font-semibold text-amber-700">Phụ thu trả phòng muộn</p>
-              <Input type="number" placeholder="Số tiền phụ thu (VND)" value={lateAmount} onChange={(e) => setLateAmount(e.target.value)} className="h-9 bg-card" />
-              <Input type="text" placeholder="Ghi chú (không bắt buộc)" value={lateNotes} onChange={(e) => setLateNotes(e.target.value)} className="h-9 bg-card" />
-              {lateError && <p className="text-xs text-destructive">{lateError}</p>}
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowLateCheckout(false)}>Hủy</Button>
-                <Button size="sm" onClick={handleLateCheckout} disabled={lateSaving} className="flex-1 bg-amber-600 text-white hover:bg-amber-700">
-                  {lateSaving ? 'Đang lưu...' : 'Xác nhận'}
-                </Button>
-              </div>
-            </div>
           )}
 
           {/* Add room charge inline form */}
@@ -768,11 +754,11 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
               <p className="text-xs font-semibold text-blue-700">Gia hạn lưu trú</p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <p className="mb-1 text-[10px] text-muted-foreground">Số đêm thêm</p>
+                  <p className="mb-1 text-xs text-muted-foreground">Số đêm thêm</p>
                   <Input type="number" min="1" value={extendDays} onChange={(e) => { setExtendDays(e.target.value); setExtendConflict(null) }} className="h-9 bg-card" />
                 </div>
                 <div>
-                  <p className="mb-1 text-[10px] text-muted-foreground">Giá gia hạn (VND)</p>
+                  <p className="mb-1 text-xs text-muted-foreground">Giá gia hạn (VND)</p>
                   <Input type="number" placeholder="0" value={extendPrice} onChange={(e) => setExtendPrice(e.target.value)} className="h-9 bg-card" />
                 </div>
               </div>
@@ -797,9 +783,6 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
 
           {/* Print actions — always available */}
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowConfirmation(true)}>
-              📄 Xác nhận phòng
-            </Button>
             <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowReceipt(true)}>
               🖨️ Biên nhận
             </Button>
@@ -819,17 +802,15 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
             </button>
           )}
         </div>
-      </div>
+      </DialogContent>
+    </Dialog>
 
-      {/* Print overlays */}
+    {/* Print overlays */}
       {showReceipt && (
         <ReceiptPrint booking={booking} payments={payments} bikeRentals={bikeRentals} onClose={() => setShowReceipt(false)} />
       )}
       {showOD1 && (
         <OD1Print booking={booking} onClose={() => setShowOD1(false)} />
-      )}
-      {showConfirmation && (
-        <ConfirmationPrint booking={booking} onClose={() => setShowConfirmation(false)} />
       )}
 
       {/* Void payment confirm dialog */}
@@ -870,7 +851,7 @@ export default function BookingDetailModal({ booking: initialBooking, rooms = []
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }
 

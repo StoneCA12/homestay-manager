@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import HousekeepingRoomCard, { STATUS_CONFIG } from '../../components/housekeeping/HousekeepingRoomCard'
@@ -9,6 +9,7 @@ import InternalNotesFeed from '../../components/notes/InternalNotesFeed'
 import Layout from '../../components/layout/Layout'
 import { bookingsApi, notesApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
 import type { Booking, InternalNote, Room, RoomStatus } from '../../types'
 
 const ORDER: RoomStatus[] = ['DIRTY', 'CLEANING', 'OUT_OF_ORDER', 'AVAILABLE']
@@ -43,11 +44,16 @@ function matchesRoomFilter(r: Room, f: RoomFilter): boolean {
 export default function HousekeepingPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
+  const { showToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<number | null>(null)
   const [error, setError] = useState('')
+  // Avoid re-toasting every 60s poll while an outage is ongoing — only notify
+  // once per new failure, not on every retry.
+  const roomsPollFailing = useRef(false)
+  const notesPollFailing = useRef(false)
 
   // ── Room notes (latest HK/Maintenance note per room) ─────────────
   const [roomNotes, setRoomNotes] = useState<Record<number, InternalNote>>({})
@@ -91,13 +97,24 @@ export default function HousekeepingPage() {
       const map: Record<number, InternalNote> = {}
       notes.forEach((n) => { map[n.entity_id] = n })
       setRoomNotes(map)
-    }).catch(() => {})
-  }, [])
+      notesPollFailing.current = false
+    }).catch(() => {
+      if (!notesPollFailing.current) {
+        notesPollFailing.current = true
+        showToast('Không thể tải ghi chú phòng.', 'error')
+      }
+    })
+  }, [showToast])
 
   const refresh = useCallback(() => {
-    roomsApi.list().then(setRooms).catch(() => {})
+    roomsApi.list().then((r) => { setRooms(r); roomsPollFailing.current = false }).catch(() => {
+      if (!roomsPollFailing.current) {
+        roomsPollFailing.current = true
+        showToast('Không thể cập nhật danh sách phòng.', 'error')
+      }
+    })
     refreshNotes()
-  }, [refreshNotes])
+  }, [refreshNotes, showToast])
 
   useEffect(() => {
     roomsApi.list()

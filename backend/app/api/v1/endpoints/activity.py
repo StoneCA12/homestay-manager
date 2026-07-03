@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import require_owner
 from app.models.activity_log import ActivityLog
 from app.models.user import User
 
@@ -32,7 +32,7 @@ def list_activity(
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_owner),
 ):
     q = db.query(ActivityLog)
 

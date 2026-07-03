@@ -342,6 +342,14 @@ def test_late_payment_requires_auth(client):
     assert resp.status_code == 401
 
 
+def test_late_payment_sorted_most_recent_checkout_first(client, db, owner, room, room2, guest):
+    older = _make_booking(db, room, guest, owner, "CHECKED_OUT", TODAY - timedelta(days=5), collected="0")
+    newer = _make_booking(db, room2, guest, owner, "CHECKED_OUT", TODAY - timedelta(days=1), collected="0")
+    resp = client.get(f"{BASE}/late-payments", cookies=cookie_for(owner))
+    ids = [r["id"] for r in resp.json()]
+    assert ids.index(newer.id) < ids.index(older.id)
+
+
 def test_late_payment_excludes_booking_paid_via_room_plus_bike(client, db, owner, room, guest):
     """total_price includes bike cost; a booking counts as paid once room payments +
     bike payments together cover it, even if the booking-only ledger looks underpaid."""

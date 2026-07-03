@@ -19,14 +19,18 @@ const buttonVariants = cva(
           'bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:ring-destructive/20',
         link: 'text-primary underline-offset-4 hover:underline',
       },
+      // Sizes are touch-target aware: `lg`/`icon-lg` hit the 44px minimum recommended
+      // for phone/tablet (this app's primary device context at the front desk).
+      // `xs`/`icon-sm` stay compact and are reserved for dense, desktop-oriented
+      // contexts (table row actions, tight inline controls) — not primary actions.
       size: {
-        default: 'h-8 px-2.5',
+        default: 'h-10 px-3',
         xs: 'h-6 gap-1 rounded-md px-2 text-xs',
-        sm: 'h-7 gap-1 px-2.5 text-[0.8rem]',
-        lg: 'h-9 px-3.5',
-        icon: 'h-8 w-8',
+        sm: 'h-9 gap-1 px-3 text-[0.8rem]',
+        lg: 'h-11 px-4',
+        icon: 'h-10 w-10',
         'icon-sm': 'h-7 w-7',
-        'icon-lg': 'h-9 w-9',
+        'icon-lg': 'h-11 w-11',
       },
     },
     defaultVariants: {

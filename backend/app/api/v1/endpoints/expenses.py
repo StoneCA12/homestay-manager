@@ -42,7 +42,7 @@ def list_expenses(
         q = q.filter(Expense.expense_date >= start_date)
     if end_date:
         q = q.filter(Expense.expense_date <= end_date)
-    if current_user.role == UserRole.RECEPTIONIST:
+    if current_user.role != UserRole.OWNER:
         q = q.filter(~Expense.category.in_(list(_OWNER_ONLY_CATEGORIES)))
     return [_to_expense_out(e) for e in q.order_by(Expense.expense_date.desc()).all()]
 
@@ -53,10 +53,10 @@ def create_expense(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role == UserRole.RECEPTIONIST and body.category in _OWNER_ONLY_CATEGORIES:
+    if current_user.role != UserRole.OWNER and body.category in _OWNER_ONLY_CATEGORIES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Receptionist cannot record expenses in category '{body.category.value}'",
+            detail=f"Only the owner can record expenses in category '{body.category.value}'",
         )
 
     expense = Expense(
@@ -86,8 +86,8 @@ def update_expense(
     if current_user.role == UserRole.RECEPTIONIST and expense.recorded_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot edit another user's expense")
     if body.category is not None:
-        if current_user.role == UserRole.RECEPTIONIST and body.category in _OWNER_ONLY_CATEGORIES:
-            raise HTTPException(status_code=403, detail="Receptionist cannot use this category")
+        if current_user.role != UserRole.OWNER and body.category in _OWNER_ONLY_CATEGORIES:
+            raise HTTPException(status_code=403, detail="Only the owner can use this category")
         expense.category = body.category
     if body.amount is not None:
         expense.amount = body.amount

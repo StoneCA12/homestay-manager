@@ -171,7 +171,11 @@
       "cancelTitle": "Xác nhận hủy đặt phòng",
       "cancelMessage": "Hủy đặt phòng của {{guest}} tại phòng {{room}}?",
       "cancelConfirm": "Hủy đặt phòng",
-      "cancelDismiss": "Không"
+      "cancelDismiss": "Không",
+      "checkOutBalanceTitle": "Khách còn nợ tiền",
+      "checkOutBalanceMessage": "{{guest}} tại phòng {{room}} còn nợ {{amount}}. Vẫn trả phòng?",
+      "checkOutBalanceConfirm": "Vẫn trả phòng",
+      "checkOutBalanceDismiss": "Quay lại thu tiền"
     },
     "paid": "✓ Đã thanh toán",
     "unpaidOverdue": "Chưa thanh toán — cần gọi khách",

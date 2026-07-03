@@ -189,6 +189,7 @@ function AddRentalModal({
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const { showToast } = useToast()
 
   useEffect(() => {
     if (!prefilledBookingId) {
@@ -197,9 +198,9 @@ function AddRentalModal({
         bookingsApi.list({ booking_status: 'CHECKED_IN' }),
       ]).then(([confirmed, checkedIn]) => {
         setActiveBookings([...checkedIn, ...confirmed])
-      }).catch(() => {})
+      }).catch(() => showToast('Không thể tải danh sách đặt phòng.', 'error'))
     }
-  }, [prefilledBookingId])
+  }, [prefilledBookingId, showToast])
 
   const selectedBike = bikes.find((b) => b.id === Number(bikeId))
   const numDays = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000))
@@ -603,12 +604,12 @@ export default function BikeRentalsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ACTIVE')
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'bike' | 'rental'; id: number; label: string } | null>(null)
 
-  const loadBikes = () => bikesApi.listBikes().then(setBikes).catch(() => {})
-  const loadRentals = () => bikesApi.listRentals(statusFilter !== 'ALL' ? { rental_status: statusFilter } : {}).then(setRentals).catch(() => {})
+  const loadBikes = () => bikesApi.listBikes().then(setBikes).catch(() => showToast('Không thể tải danh sách xe.', 'error'))
+  const loadRentals = () => bikesApi.listRentals(statusFilter !== 'ALL' ? { rental_status: statusFilter } : {}).then(setRentals).catch(() => showToast('Không thể tải danh sách thuê xe.', 'error'))
   const loadReport = (month: Date) => {
     setReportLoading(true)
     bikesApi.report(toISO(firstOfMonth(month)), toISO(lastOfMonth(month)))
-      .then(setReport).catch(() => {}).finally(() => setReportLoading(false))
+      .then(setReport).catch(() => showToast('Không thể tải báo cáo xe máy.', 'error')).finally(() => setReportLoading(false))
   }
 
   useEffect(() => { loadBikes() }, [])
@@ -694,9 +695,9 @@ export default function BikeRentalsPage() {
           </div>
         </div>
 
-        {/* Tab bar */}
+        {/* Tab bar — "report" is an admin-only monthly reconciliation view */}
         <div className="mb-6 inline-flex w-fit gap-1 rounded-lg bg-muted p-1">
-          {(['fleet', 'rentals', 'report'] as Tab[]).map((tk) => (
+          {([...(['fleet', 'rentals'] as Tab[]), ...(isAdmin ? (['report'] as Tab[]) : [])]).map((tk) => (
             <button
               key={tk}
               onClick={() => setTab(tk)}
@@ -785,14 +786,14 @@ export default function BikeRentalsPage() {
         {tab === 'report' && (
           <div className="space-y-5">
             <div className="flex items-center gap-3">
-              <Button variant="outline" size="icon" onClick={() => setReportMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}>
-                <ChevronLeft className="h-4 w-4" />
+              <Button variant="outline" size="icon" aria-label="Tháng trước" onClick={() => setReportMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}>
+                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
               </Button>
               <span className="min-w-[180px] text-center text-base font-bold capitalize text-foreground">
                 {reportMonth.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}
               </span>
-              <Button variant="outline" size="icon" onClick={() => setReportMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}>
-                <ChevronRight className="h-4 w-4" />
+              <Button variant="outline" size="icon" aria-label="Tháng sau" onClick={() => setReportMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}>
+                <ChevronRight aria-hidden="true" className="h-4 w-4" />
               </Button>
             </div>
             <ReportSection report={report} loading={reportLoading} />

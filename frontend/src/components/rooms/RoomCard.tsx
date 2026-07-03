@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { Room } from '../../types'
 import { formatVND } from '../../utils/format'
+import { cn } from '@/lib/utils'
 
 const STATUS_CONFIG: Record<string, { bg: string; border: string; badge: string }> = {
   AVAILABLE:      { bg: 'bg-white',       border: 'border-gray-200',   badge: 'bg-gray-100 text-gray-500'    },
@@ -13,12 +14,23 @@ const STATUS_CONFIG: Record<string, { bg: string; border: string; badge: string 
   OVERBOOKING:    { bg: 'bg-purple-50',   border: 'border-purple-300', badge: 'bg-purple-600 text-white'     },
 }
 
-export default function RoomCard({ room }: { room: Room }) {
+export default function RoomCard({ room, onClick }: { room: Room; onClick?: () => void }) {
   const { t } = useTranslation()
   const cfg = STATUS_CONFIG[room.display_status] ?? STATUS_CONFIG.AVAILABLE
+  const clickable = !!onClick && !!room.active_booking_id
 
   return (
-    <div className={`flex flex-col gap-2 rounded-xl border-2 ${cfg.bg} ${cfg.border} p-4 shadow-sm transition-shadow hover:shadow-md`}>
+    <div
+      onClick={clickable ? onClick : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!() } } : undefined}
+      className={cn(
+        'flex flex-col gap-2 rounded-xl border-2 p-4 shadow-sm transition-shadow',
+        cfg.bg, cfg.border,
+        clickable ? 'cursor-pointer hover:shadow-md hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : 'hover:shadow-md',
+      )}
+    >
       {/* Header */}
       <div className="flex items-start justify-between">
         <span className="text-2xl font-bold text-foreground">{room.room_number}</span>

@@ -8,6 +8,7 @@ import Layout from '../../components/layout/Layout'
 import RoomCard from '../../components/rooms/RoomCard'
 import { bookingsApi, revenueApi, roomsApi } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
 import type { Booking, BookingSummaryRow, BikeReturnRow, DailyReport, Room } from '../../types'
 import { formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
@@ -246,6 +247,7 @@ const LEGEND = [
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { showToast } = useToast()
   const isAdminOrAbove = user?.role === 'OWNER' || user?.role === 'ADMIN'
   const navigate = useNavigate()
 
@@ -254,6 +256,8 @@ export default function DashboardPage() {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Avoid re-toasting every 60s poll while an outage is ongoing.
+  const fetchFailing = useRef(false)
 
   const goBooking   = useCallback((id: number) => navigate('/bookings', { state: { openBookingId: id } }), [navigate])
   const goTab       = useCallback((tab: string) => navigate('/bookings', { state: { fabTab: tab } }), [navigate])
@@ -290,10 +294,22 @@ export default function DashboardPage() {
       overdueCheckouts: overdue,
       latePayments:     latePaymentsRes.status === 'fulfilled' ? latePaymentsRes.value : [],
     })
+
+    const anyFailed = [reportRes, roomsRes, lateRes, noRoomRes, checkedInRes, latePaymentsRes]
+      .some((r) => r.status === 'rejected')
+    if (anyFailed) {
+      if (!fetchFailing.current) {
+        fetchFailing.current = true
+        showToast('Không thể tải đầy đủ dữ liệu, một số thông tin có thể chưa cập nhật.', 'error')
+      }
+    } else {
+      fetchFailing.current = false
+    }
+
     setLastRefreshed(new Date())
     setLoading(false)
     if (isManual) setRefreshing(false)
-  }, [])
+  }, [showToast])
 
   useEffect(() => {
     fetchAll()
@@ -373,46 +389,71 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* ── Urgent alerts (full width, always first) ── */}
+        {data.latePayments.length > 0 && (
+          <WidgetCard
+            title="Cảnh báo thanh toán trễ"
+            count={data.latePayments.length}
+            icon={Banknote}
+            accent="red"
+            loading={loading}
+            emptyMessage=""
+            onSeeAll={() => goTab('all')}
+          >
+            {data.latePayments.map((row) => (
+              <SummaryRow key={row.id} row={row} onClick={() => goBooking(row.id)} showCheckout />
+            ))}
+          </WidgetCard>
+        )}
+
+        {data.overdueCheckouts.length > 0 && (
+          <WidgetCard
+            title="Khách quá hạn trả phòng"
+            count={data.overdueCheckouts.length}
+            icon={AlarmClock}
+            accent="red"
+            loading={loading}
+            emptyMessage=""
+            onSeeAll={() => goTab('all')}
+          >
+            {data.overdueCheckouts.map((b) => (
+              <OverdueRow key={b.id} booking={b} onClick={() => goBooking(b.id)} />
+            ))}
+          </WidgetCard>
+        )}
+
+        {/* ── Room Map — primary spatial reference, promoted above the widget grid ── */}
+        <div>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sơ đồ phòng</p>
+          <div className="mb-4 flex flex-wrap gap-3">
+            {LEGEND.map(({ label, dot }) => (
+              <span key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+                {label}
+              </span>
+            ))}
+          </div>
+          {loading ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {data.rooms.map((room) => (
+                <RoomCard
+                  key={room.id}
+                  room={room}
+                  onClick={room.active_booking_id ? () => goBooking(room.active_booking_id!) : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* ── Widget grid ── */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-
-          {/* ── Late payment alert (spans full width when present) ── */}
-          {data.latePayments.length > 0 && (
-            <div className="col-span-1 md:col-span-2 lg:col-span-3">
-              <WidgetCard
-                title="Cảnh báo thanh toán trễ"
-                count={data.latePayments.length}
-                icon={Banknote}
-                accent="red"
-                loading={loading}
-                emptyMessage=""
-                onSeeAll={() => goTab('all')}
-              >
-                {data.latePayments.map((row) => (
-                  <SummaryRow key={row.id} row={row} onClick={() => goBooking(row.id)} showCheckout />
-                ))}
-              </WidgetCard>
-            </div>
-          )}
-
-          {/* ── Overdue checkout alert (spans full width when present) ── */}
-          {data.overdueCheckouts.length > 0 && (
-            <div className="col-span-1 md:col-span-2 lg:col-span-3">
-              <WidgetCard
-                title="Khách quá hạn trả phòng"
-                count={data.overdueCheckouts.length}
-                icon={AlarmClock}
-                accent="red"
-                loading={loading}
-                emptyMessage=""
-                onSeeAll={() => goTab('all')}
-              >
-                {data.overdueCheckouts.map((b) => (
-                  <OverdueRow key={b.id} booking={b} onClick={() => goBooking(b.id)} />
-                ))}
-              </WidgetCard>
-            </div>
-          )}
 
           {/* Row 1: Today's operations */}
           <WidgetCard
@@ -546,13 +587,13 @@ export default function DashboardPage() {
                     <button
                       key={b.id}
                       onClick={() => goBooking(b.id)}
-                      className="rounded-md border bg-card px-2 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted"
+                      className="rounded-md border bg-card px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
                     >
                       {b.room_number ? `P.${b.room_number}` : '—'} · {b.guest_name.split(' ').pop()}
                     </button>
                   ))}
                   {data.report.tomorrow_arrivals.length > 4 && (
-                    <span className="rounded-md border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground">
+                    <span className="rounded-md border bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
                       +{data.report.tomorrow_arrivals.length - 4}
                     </span>
                   )}
@@ -560,30 +601,6 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* ── Room Map ── */}
-        <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sơ đồ phòng</p>
-          <div className="mb-4 flex flex-wrap gap-3">
-            {LEGEND.map(({ label, dot }) => (
-              <span key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
-                {label}
-              </span>
-            ))}
-          </div>
-          {loading ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {data.rooms.map((room) => <RoomCard key={room.id} room={room} />)}
-            </div>
-          )}
         </div>
 
       </div>

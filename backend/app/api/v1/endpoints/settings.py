@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_admin_or_above
+from app.core.deps import require_admin_or_above
 from app.models.commission_rate import CommissionRate
 from app.models.user import User
 
@@ -26,7 +26,7 @@ class CommissionRateUpdate(BaseModel):
 @router.get("/commission-rates", response_model=list[CommissionRateOut])
 def list_commission_rates(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_admin_or_above),
 ):
     return db.query(CommissionRate).order_by(CommissionRate.ota_source).all()
 

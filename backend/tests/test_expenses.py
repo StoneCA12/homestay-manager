@@ -22,10 +22,15 @@ def test_owner_can_add_all_categories(client, owner):
         assert resp.status_code == 201, f"{cat}: {resp.json()}"
 
 
-def test_admin_can_add_all_categories(client, admin):
-    for cat in ("CLEANING", "SUPPLIES", "OTHER", "UTILITIES", "SALARIES", "MAINTENANCE"):
+def test_admin_can_add_all_but_salaries(client, admin):
+    for cat in ("CLEANING", "SUPPLIES", "OTHER", "UTILITIES", "MAINTENANCE"):
         resp = _expense(client, admin, category=cat)
         assert resp.status_code == 201, f"{cat}: {resp.json()}"
+
+
+def test_admin_blocked_from_salaries(client, admin):
+    resp = _expense(client, admin, category="SALARIES")
+    assert resp.status_code == 403
 
 
 def test_receptionist_can_add_all_but_salaries(client, receptionist):
@@ -97,6 +102,15 @@ def test_receptionist_sees_all_but_salaries(client, owner, receptionist):
     assert "SALARIES" not in categories
     assert "CLEANING" in categories
     assert "UTILITIES" in categories
+
+
+def test_admin_sees_all_but_salaries(client, owner, admin):
+    _expense(client, owner, category="SALARIES", amount="5000000")
+    _expense(client, owner, category="CLEANING", amount="200000")
+    resp = client.get(f"{BASE}/", cookies=cookie_for(admin))
+    categories = [e["category"] for e in resp.json()]
+    assert "SALARIES" not in categories
+    assert "CLEANING" in categories
 
 
 def test_list_date_filter_start(client, owner):

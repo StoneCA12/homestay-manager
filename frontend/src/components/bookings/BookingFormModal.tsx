@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { cloneElement, isValidElement, useEffect, useId, useMemo, useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Banknote, CalendarDays, DoorOpen, FileText, Sparkles, User, X } from 'lucide-react'
 import { bookingsApi, guestsApi, roomsApi } from '../../services/api'
@@ -11,6 +11,7 @@ import { parseConflict, extractErrorMessage, type ConflictDetail } from '../../l
 import { resolveRoomWarnings } from '../../lib/bookingWarnings'
 import ConflictAlert from './ConflictAlert'
 import WarningBanner from './WarningBanner'
+import DateRangePicker from './DateRangePicker'
 
 type FormTab = 'guest' | 'stay' | 'room' | 'payment' | 'notes'
 
@@ -70,10 +71,11 @@ const TABS: TabDef[] = [
 ]
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  const id = useId()
   return (
     <div>
-      <label className="mb-1 block text-xs font-semibold text-muted-foreground">{label}</label>
-      {children}
+      <label htmlFor={id} className="mb-1 block text-xs font-semibold text-muted-foreground">{label}</label>
+      {isValidElement(children) ? cloneElement(children as ReactElement<{ id?: string }>, { id }) : children}
       {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
     </div>
   )
@@ -155,6 +157,12 @@ export default function BookingFormModal({ rooms, onClose, onCreated, defaultRoo
       if (k === 'guest_phone') setAutofilled(false)
       if (k === 'room_id' || k === 'check_in_date' || k === 'check_out_date') setConflict(null)
     }
+
+  const setDateRange = (checkIn: string, checkOut: string) => {
+    setForm((f) => ({ ...f, check_in_date: checkIn, check_out_date: checkOut }))
+    setFieldErrors((fe) => { const n = { ...fe }; delete n.check_in_date; delete n.check_out_date; return n })
+    setConflict(null)
+  }
 
   const handlePhoneBlur = async () => {
     const phone = form.guest_phone.trim()
@@ -250,8 +258,8 @@ export default function BookingFormModal({ rooms, onClose, onCreated, defaultRoo
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b px-5 py-4">
           <h2 className="text-base font-bold text-foreground">{t('bookingForm.title')}</h2>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} className="text-muted-foreground">
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Đóng" className="text-muted-foreground">
+            <X aria-hidden="true" className="h-4 w-4" />
           </Button>
         </div>
 
@@ -267,7 +275,7 @@ export default function BookingFormModal({ rooms, onClose, onCreated, defaultRoo
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors relative',
+                  'flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors relative',
                   active
                     ? 'text-primary after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary'
                     : 'text-muted-foreground hover:text-foreground',
@@ -344,25 +352,16 @@ export default function BookingFormModal({ rooms, onClose, onCreated, defaultRoo
           {/* ── Stay ── */}
           {activeTab === 'stay' && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label={`${t('bookingForm.checkIn')} *`} error={fieldErrors.check_in_date}>
-                  <Input
-                    type="date"
-                    value={form.check_in_date}
-                    onChange={set('check_in_date')}
-                    className={cn('h-9', fieldErrors.check_in_date && 'border-destructive')}
-                  />
-                </Field>
-                <Field label={`${t('bookingForm.checkOut')} *`} error={fieldErrors.check_out_date}>
-                  <Input
-                    type="date"
-                    value={form.check_out_date}
-                    min={form.check_in_date || undefined}
-                    onChange={set('check_out_date')}
-                    className={cn('h-9', fieldErrors.check_out_date && 'border-destructive')}
-                  />
-                </Field>
-              </div>
+              <DateRangePicker
+                checkIn={form.check_in_date}
+                checkOut={form.check_out_date}
+                onChange={setDateRange}
+              />
+              {(fieldErrors.check_in_date || fieldErrors.check_out_date) && (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.check_in_date ?? fieldErrors.check_out_date}
+                </p>
+              )}
 
               {nights > 0 && (
                 <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-sm">

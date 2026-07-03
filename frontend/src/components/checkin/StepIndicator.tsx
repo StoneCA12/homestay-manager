@@ -39,7 +39,7 @@ export default function StepIndicator({ steps, currentStep }: Props) {
             </div>
             <span
               className={cn(
-                'mt-1.5 hidden text-[10px] whitespace-nowrap text-center sm:block',
+                'mt-1.5 hidden text-xs whitespace-nowrap text-center sm:block',
                 active ? 'font-semibold text-foreground' : 'text-muted-foreground',
               )}
             >

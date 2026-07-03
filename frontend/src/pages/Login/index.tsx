@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { House } from 'lucide-react'
@@ -22,10 +22,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [sessionExpired, setSessionExpired] = useState(false)
+
+  useEffect(() => {
+    if (sessionStorage.getItem('session_expired')) {
+      sessionStorage.removeItem('session_expired')
+      setSessionExpired(true)
+    }
+  }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
+    setSessionExpired(false)
     setLoading(true)
     try {
       await login(email, password)
@@ -51,6 +60,11 @@ export default function LoginPage() {
         </CardHeader>
 
         <CardContent>
+          {sessionExpired && (
+            <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.
+            </p>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">{t('auth.email')}</Label>

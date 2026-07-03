@@ -102,8 +102,8 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
           {/* Room + OTA source */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>{t('bookingForm.room')}</label>
-              <select value={form.room_id} onChange={set('room_id')} className={inputCls}>
+              <label htmlFor="edit-room" className={labelCls}>{t('bookingForm.room')}</label>
+              <select id="edit-room" value={form.room_id} onChange={set('room_id')} className={inputCls}>
                 <option value="">{t('bookingForm.selectRoomOptional')}</option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -113,8 +113,8 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
               </select>
             </div>
             <div>
-              <label className={labelCls}>{t('bookingForm.otaSource')}</label>
-              <select value={form.ota_source} onChange={set('ota_source')} className={inputCls}>
+              <label htmlFor="edit-ota-source" className={labelCls}>{t('bookingForm.otaSource')}</label>
+              <select id="edit-ota-source" value={form.ota_source} onChange={set('ota_source')} className={inputCls}>
                 {OTA_SOURCES.map((s) => (
                   <option key={s} value={s}>{t(`ota.${s}` as any)}</option>
                 ))}
@@ -131,51 +131,51 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
           {/* Phone + Name */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>{t('bookingForm.guestPhone')}</label>
-              <input value={form.guest_phone} onChange={set('guest_phone')} className={inputCls} />
+              <label htmlFor="edit-guest-phone" className={labelCls}>{t('bookingForm.guestPhone')}</label>
+              <input id="edit-guest-phone" value={form.guest_phone} onChange={set('guest_phone')} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>{t('bookingForm.guestName')} *</label>
-              <input required value={form.guest_name} onChange={set('guest_name')} className={inputCls} />
+              <label htmlFor="edit-guest-name" className={labelCls}>{t('bookingForm.guestName')} *</label>
+              <input id="edit-guest-name" required value={form.guest_name} onChange={set('guest_name')} className={inputCls} />
             </div>
           </div>
 
           {/* ID type + ID number */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>{t('bookingForm.idType')}</label>
-              <select value={form.guest_id_type} onChange={set('guest_id_type')} className={inputCls}>
+              <label htmlFor="edit-id-type" className={labelCls}>{t('bookingForm.idType')}</label>
+              <select id="edit-id-type" value={form.guest_id_type} onChange={set('guest_id_type')} className={inputCls}>
                 <option value="">{t('bookingForm.selectIdType')}</option>
                 {ID_TYPES.map((it) => <option key={it} value={it}>{it}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelCls}>{t('bookingForm.idNumber')}</label>
-              <input value={form.guest_id_number} onChange={set('guest_id_number')} className={inputCls} />
+              <label htmlFor="edit-id-number" className={labelCls}>{t('bookingForm.idNumber')}</label>
+              <input id="edit-id-number" value={form.guest_id_number} onChange={set('guest_id_number')} className={inputCls} />
             </div>
           </div>
 
           {/* Check-in / Check-out */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>{t('bookingForm.checkIn')} *</label>
-              <input required type="date" value={form.check_in_date} onChange={set('check_in_date')} className={inputCls} />
+              <label htmlFor="edit-check-in" className={labelCls}>{t('bookingForm.checkIn')} *</label>
+              <input id="edit-check-in" required type="date" value={form.check_in_date} onChange={set('check_in_date')} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>{t('bookingForm.checkOut')} *</label>
-              <input required type="date" value={form.check_out_date} onChange={set('check_out_date')} className={inputCls} />
+              <label htmlFor="edit-check-out" className={labelCls}>{t('bookingForm.checkOut')} *</label>
+              <input id="edit-check-out" required type="date" value={form.check_out_date} onChange={set('check_out_date')} className={inputCls} />
             </div>
           </div>
 
           {/* Price + guests */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>{t('bookingForm.totalPrice')} *</label>
-              <input required type="number" min="0" value={form.total_price} onChange={set('total_price')} className={inputCls} />
+              <label htmlFor="edit-total-price" className={labelCls}>{t('bookingForm.totalPrice')} *</label>
+              <input id="edit-total-price" required type="number" min="0" value={form.total_price} onChange={set('total_price')} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>{t('bookingForm.numGuests')}</label>
-              <input type="number" min="1" value={form.num_guests}
+              <label htmlFor="edit-num-guests" className={labelCls}>{t('bookingForm.numGuests')}</label>
+              <input id="edit-num-guests" type="number" min="1" value={form.num_guests}
                 onChange={(e) => setForm((p) => ({ ...p, num_guests: Number(e.target.value) }))}
                 className={inputCls} />
             </div>
@@ -183,14 +183,14 @@ export default function EditBookingModal({ booking, rooms, onClose, onSaved }: P
 
           {/* Booking ref */}
           <div>
-            <label className={labelCls}>{t('bookingForm.bookingRef')}</label>
-            <input value={form.booking_ref} onChange={set('booking_ref')} className={inputCls} />
+            <label htmlFor="edit-booking-ref" className={labelCls}>{t('bookingForm.bookingRef')}</label>
+            <input id="edit-booking-ref" value={form.booking_ref} onChange={set('booking_ref')} className={inputCls} />
           </div>
 
           {/* Notes */}
           <div>
-            <label className={labelCls}>{t('bookingForm.notes')}</label>
-            <textarea value={form.notes} onChange={set('notes')} rows={2} className={`${inputCls} resize-none`} />
+            <label htmlFor="edit-notes" className={labelCls}>{t('bookingForm.notes')}</label>
+            <textarea id="edit-notes" value={form.notes} onChange={set('notes')} rows={2} className={`${inputCls} resize-none`} />
           </div>
 
           {conflict ? (

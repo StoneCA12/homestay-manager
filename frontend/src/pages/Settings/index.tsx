@@ -99,9 +99,10 @@ export default function SettingsPage() {
   const [changePwError, setChangePwError] = useState('')
 
   useEffect(() => {
-    usersApi.list().then(setUsers).finally(() => setLoading(false))
-    settingsApi.listCommissionRates().then(setRates).catch(() => {})
-    roomsApi.list().then(setRooms).catch(() => {})
+    usersApi.list().then(setUsers).catch(() => showToast('Không thể tải danh sách nhân viên.', 'error')).finally(() => setLoading(false))
+    settingsApi.listCommissionRates().then(setRates).catch(() => showToast('Không thể tải tỷ lệ hoa hồng.', 'error'))
+    roomsApi.list().then(setRooms).catch(() => showToast('Không thể tải danh sách phòng.', 'error'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleDeleteUser = async (user: User) => {
@@ -457,12 +458,12 @@ export default function SettingsPage() {
             <form onSubmit={handleRoomSubmit} className="space-y-4 p-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('settings.rooms.modal.number')} *</Label>
-                  <Input required value={roomForm.room_number} onChange={(e) => setRoomForm((f) => ({ ...f, room_number: e.target.value }))} placeholder="101" className="h-9" />
+                  <Label htmlFor="room-number" className="text-xs">{t('settings.rooms.modal.number')} *</Label>
+                  <Input id="room-number" required value={roomForm.room_number} onChange={(e) => setRoomForm((f) => ({ ...f, room_number: e.target.value }))} placeholder="101" className="h-9" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('settings.rooms.modal.type')}</Label>
-                  <select value={roomForm.room_type} onChange={(e) => setRoomForm((f) => ({ ...f, room_type: e.target.value }))} className={SELECT_CLASS}>
+                  <Label htmlFor="room-type" className="text-xs">{t('settings.rooms.modal.type')}</Label>
+                  <select id="room-type" value={roomForm.room_type} onChange={(e) => setRoomForm((f) => ({ ...f, room_type: e.target.value }))} className={SELECT_CLASS}>
                     {ROOM_TYPES.map((rt) => (
                       <option key={rt} value={rt}>{t(`roomType.${rt}` as any)}</option>
                     ))}
@@ -471,22 +472,22 @@ export default function SettingsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('settings.rooms.modal.floor')}</Label>
-                  <Input type="number" min="1" value={roomForm.floor} onChange={(e) => setRoomForm((f) => ({ ...f, floor: e.target.value }))} className="h-9" />
+                  <Label htmlFor="room-floor" className="text-xs">{t('settings.rooms.modal.floor')}</Label>
+                  <Input id="room-floor" type="number" min="1" value={roomForm.floor} onChange={(e) => setRoomForm((f) => ({ ...f, floor: e.target.value }))} className="h-9" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('settings.rooms.modal.capacity')}</Label>
-                  <Input type="number" min="1" value={roomForm.capacity} onChange={(e) => setRoomForm((f) => ({ ...f, capacity: e.target.value }))} className="h-9" />
+                  <Label htmlFor="room-capacity" className="text-xs">{t('settings.rooms.modal.capacity')}</Label>
+                  <Input id="room-capacity" type="number" min="1" value={roomForm.capacity} onChange={(e) => setRoomForm((f) => ({ ...f, capacity: e.target.value }))} className="h-9" />
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">{t('settings.rooms.modal.basePrice')} *</Label>
-                <Input required type="number" min="0" value={roomForm.base_price} onChange={(e) => setRoomForm((f) => ({ ...f, base_price: e.target.value }))} placeholder="500000" className="h-9" />
+                <Label htmlFor="room-base-price" className="text-xs">{t('settings.rooms.modal.basePrice')} *</Label>
+                <Input id="room-base-price" required type="number" min="0" value={roomForm.base_price} onChange={(e) => setRoomForm((f) => ({ ...f, base_price: e.target.value }))} placeholder="500000" className="h-9" />
               </div>
               {roomModal.target && (
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('settings.rooms.modal.housekeepingStatus')}</Label>
-                  <select value={roomForm.housekeeping_status} onChange={(e) => setRoomForm((f) => ({ ...f, housekeeping_status: e.target.value }))} className={SELECT_CLASS}>
+                  <Label htmlFor="room-hk-status" className="text-xs">{t('settings.rooms.modal.housekeepingStatus')}</Label>
+                  <select id="room-hk-status" value={roomForm.housekeeping_status} onChange={(e) => setRoomForm((f) => ({ ...f, housekeeping_status: e.target.value }))} className={SELECT_CLASS}>
                     {HK_STATUSES.map((s) => (
                       <option key={s} value={s}>{t(`roomStatus.${s}` as any)}</option>
                     ))}
@@ -541,12 +542,12 @@ export default function SettingsPage() {
             </DialogHeader>
             <div className="space-y-4 p-6">
               <div className="space-y-1">
-                <Label className="text-xs">{t('settings.password.newPassword')}</Label>
-                <Input type="password" value={resetPwInput} onChange={(e) => setResetPwInput(e.target.value)} className="h-9" placeholder="≥ 8 ký tự" />
+                <Label htmlFor="resetpw-new" className="text-xs">{t('settings.password.newPassword')}</Label>
+                <Input id="resetpw-new" type="password" value={resetPwInput} onChange={(e) => setResetPwInput(e.target.value)} className="h-9" placeholder="≥ 8 ký tự" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">{t('settings.password.confirmPassword')}</Label>
-                <Input type="password" value={resetPwConfirm} onChange={(e) => setResetPwConfirm(e.target.value)} className="h-9" placeholder="Nhập lại mật khẩu" />
+                <Label htmlFor="resetpw-confirm" className="text-xs">{t('settings.password.confirmPassword')}</Label>
+                <Input id="resetpw-confirm" type="password" value={resetPwConfirm} onChange={(e) => setResetPwConfirm(e.target.value)} className="h-9" placeholder="Nhập lại mật khẩu" />
               </div>
               {resetPwError && (
                 <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{resetPwError}</p>
@@ -571,16 +572,16 @@ export default function SettingsPage() {
             </DialogHeader>
             <div className="space-y-4 p-6">
               <div className="space-y-1">
-                <Label className="text-xs">{t('settings.password.currentPassword')}</Label>
-                <Input type="password" value={changePwOld} onChange={(e) => setChangePwOld(e.target.value)} className="h-9" placeholder="Mật khẩu hiện tại" />
+                <Label htmlFor="changepw-old" className="text-xs">{t('settings.password.currentPassword')}</Label>
+                <Input id="changepw-old" type="password" value={changePwOld} onChange={(e) => setChangePwOld(e.target.value)} className="h-9" placeholder="Mật khẩu hiện tại" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">{t('settings.password.newPassword')}</Label>
-                <Input type="password" value={changePwNew} onChange={(e) => setChangePwNew(e.target.value)} className="h-9" placeholder="≥ 8 ký tự" />
+                <Label htmlFor="changepw-new" className="text-xs">{t('settings.password.newPassword')}</Label>
+                <Input id="changepw-new" type="password" value={changePwNew} onChange={(e) => setChangePwNew(e.target.value)} className="h-9" placeholder="≥ 8 ký tự" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">{t('settings.password.confirmPassword')}</Label>
-                <Input type="password" value={changePwConfirm} onChange={(e) => setChangePwConfirm(e.target.value)} className="h-9" placeholder="Nhập lại mật khẩu" />
+                <Label htmlFor="changepw-confirm" className="text-xs">{t('settings.password.confirmPassword')}</Label>
+                <Input id="changepw-confirm" type="password" value={changePwConfirm} onChange={(e) => setChangePwConfirm(e.target.value)} className="h-9" placeholder="Nhập lại mật khẩu" />
               </div>
               {changePwError && (
                 <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{changePwError}</p>

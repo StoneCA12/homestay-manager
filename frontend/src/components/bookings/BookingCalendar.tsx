@@ -242,11 +242,11 @@ export default function BookingCalendar({
 
   const MonthNav = () => (
     <div className="mb-4 flex items-center gap-3">
-      <Button variant="outline" size="icon" onClick={onPrevMonth}><ChevronLeft className="h-4 w-4" /></Button>
+      <Button variant="outline" size="icon" aria-label="Tháng trước" onClick={onPrevMonth}><ChevronLeft aria-hidden="true" className="h-4 w-4" /></Button>
       <span className="min-w-[180px] text-center text-base font-bold capitalize text-foreground">
         {monthLabel}
       </span>
-      <Button variant="outline" size="icon" onClick={onNextMonth}><ChevronRight className="h-4 w-4" /></Button>
+      <Button variant="outline" size="icon" aria-label="Tháng sau" onClick={onNextMonth}><ChevronRight aria-hidden="true" className="h-4 w-4" /></Button>
     </div>
   )
 
@@ -457,13 +457,13 @@ export default function BookingCalendar({
     <div>
       <div className="mb-6 flex items-center gap-3">
         {onPrevYear && (
-          <Button variant="outline" size="icon" onClick={onPrevYear}><ChevronLeft className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" aria-label="Năm trước" onClick={onPrevYear}><ChevronLeft aria-hidden="true" className="h-4 w-4" /></Button>
         )}
         <span className="min-w-[200px] text-center text-base font-bold text-foreground">
           {t('calendar.yearTitle', { year: displayYear })}
         </span>
         {onNextYear && (
-          <Button variant="outline" size="icon" onClick={onNextYear}><ChevronRight className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" aria-label="Năm sau" onClick={onNextYear}><ChevronRight aria-hidden="true" className="h-4 w-4" /></Button>
         )}
       </div>
 

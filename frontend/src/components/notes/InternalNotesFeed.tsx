@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { notesApi } from '../../services/api'
+import { useToast } from '../../contexts/ToastContext'
 import type { InternalNote, NoteCategory, NoteEntityType, UserRole } from '../../types'
 import { cn } from '@/lib/utils'
 
@@ -42,6 +43,7 @@ const ALL_CATEGORIES: NoteCategory[] = ['RECEPTION', 'HOUSEKEEPING', 'MAINTENANC
 const NON_OWNER_CATEGORIES: NoteCategory[] = ['RECEPTION', 'HOUSEKEEPING', 'MAINTENANCE']
 
 export default function InternalNotesFeed({ entityType, entityId, userRole, allowedCategories, compact }: Props) {
+  const { showToast } = useToast()
   const [notes, setNotes] = useState<InternalNote[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<NoteCategory | 'ALL'>('ALL')
@@ -58,9 +60,9 @@ export default function InternalNotesFeed({ entityType, entityId, userRole, allo
   useEffect(() => {
     notesApi.list(entityType, entityId)
       .then(setNotes)
-      .catch(() => {})
+      .catch(() => showToast('Không thể tải ghi chú.', 'error'))
       .finally(() => setLoading(false))
-  }, [entityType, entityId])
+  }, [entityType, entityId, showToast])
 
   const displayed = activeFilter === 'ALL' ? notes : notes.filter((n) => n.category === activeFilter)
 
@@ -143,16 +145,16 @@ export default function InternalNotesFeed({ entityType, entityId, userRole, allo
                 <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold', CATEGORY_BADGE[n.category])}>
                   {CATEGORY_LABELS[n.category]}
                 </span>
-                <span className="whitespace-nowrap text-[10px] opacity-70">{formatTs(n.created_at)}</span>
+                <span className="whitespace-nowrap text-xs opacity-70">{formatTs(n.created_at)}</span>
               </div>
               <p className={cn('mt-1.5 text-sm leading-snug', compact && 'text-xs')}>{n.content}</p>
               <div className="mt-1 flex items-center justify-between gap-2">
                 {n.author_name ? (
-                  <p className="text-[10px] opacity-60">— {n.author_name}</p>
+                  <p className="text-xs opacity-60">— {n.author_name}</p>
                 ) : <span />}
                 {entityType === 'ROOM' && (
                   confirmDeleteId === n.id ? (
-                    <span className="flex items-center gap-1.5 text-[10px]">
+                    <span className="flex items-center gap-1.5 text-xs">
                       Xóa ghi chú này?
                       <button
                         onClick={() => handleDelete(n.id)}
@@ -168,7 +170,7 @@ export default function InternalNotesFeed({ entityType, entityId, userRole, allo
                   ) : (
                     <button
                       onClick={() => setConfirmDeleteId(n.id)}
-                      className="text-[10px] text-muted-foreground opacity-60 hover:opacity-100 hover:text-red-600"
+                      className="text-xs text-muted-foreground opacity-60 hover:opacity-100 hover:text-red-600"
                     >
                       Xóa
                     </button>

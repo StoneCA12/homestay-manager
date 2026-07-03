@@ -147,6 +147,7 @@ export default function SearchBar() {
         <input
           ref={inputRef}
           type="text"
+          aria-label="Tìm khách, phòng, xe máy"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') close() }}

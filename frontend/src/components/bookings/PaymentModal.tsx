@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { bookingsApi } from '../../services/api'
+import { useToast } from '../../contexts/ToastContext'
 import type { Booking, Payment, PaymentMethod } from '../../types'
 import { formatDate, formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,7 @@ interface Props {
 
 export default function PaymentModal({ booking, onClose, onUpdated }: Props) {
   const { t } = useTranslation()
+  const { showToast } = useToast()
   const [history, setHistory] = useState<Payment[]>([])
   const [historyLoading, setHistoryLoading] = useState(true)
   const [isRefund, setIsRefund] = useState(false)
@@ -43,9 +45,9 @@ export default function PaymentModal({ booking, onClose, onUpdated }: Props) {
 
   useEffect(() => {
     bookingsApi.getPayments(booking.id)
-      .then(setHistory).catch(() => {})
+      .then(setHistory).catch(() => showToast('Không thể tải lịch sử thanh toán.', 'error'))
       .finally(() => setHistoryLoading(false))
-  }, [booking.id])
+  }, [booking.id, showToast])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

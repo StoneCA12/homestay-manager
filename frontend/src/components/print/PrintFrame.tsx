@@ -27,7 +27,11 @@ export default function PrintFrame({ title, onClose, children }: Props) {
   const handlePrint = () => window.print()
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center overflow-y-auto py-8 px-4">
+    // z-[60]: must sit above the booking detail Dialog (z-50) it's opened from. Radix
+    // Dialog renders via a Portal appended to the end of <body>, so at equal z-index
+    // the still-open Dialog paints on top of this inline-rendered overlay and eats
+    // its clicks even though nothing looks wrong in the JSX tree.
+    <div className="fixed inset-0 z-[60] bg-black/60 flex items-start justify-center overflow-y-auto py-8 px-4">
       <div id="print-frame-portal" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         {/* Toolbar — hidden on print */}
         <div className="no-print flex items-center justify-between px-5 py-4 border-b border-gray-100">

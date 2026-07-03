@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Sparkles, X } from 'lucide-react'
 import type { Booking, Payment, Room } from '../../types'
 import { bookingsApi, roomsApi } from '../../services/api'
+import { useToast } from '../../contexts/ToastContext'
 import { formatDate, formatVND } from '../../utils/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -52,6 +53,7 @@ interface Props {
 }
 
 export default function CheckInWizard({ booking, rooms, onComplete, onClose }: Props) {
+  const { showToast } = useToast()
   const saved = useMemo(() => loadSaved(booking.id), [booking.id])
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(saved?.step ?? 1)
@@ -115,9 +117,9 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
   // Fetch payments after check-in completion
   useEffect(() => {
     if (step === 5 && completedBooking) {
-      bookingsApi.getPayments(completedBooking.id).then(setPayments).catch(() => {})
+      bookingsApi.getPayments(completedBooking.id).then(setPayments).catch(() => showToast('Không thể tải lịch sử thanh toán.', 'error'))
     }
-  }, [step, completedBooking])
+  }, [step, completedBooking, showToast])
 
   const goNext = () => {
     setError('')
@@ -188,8 +190,8 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
               {booking.guest_name} · P.{booking.room_number ?? '?'}
             </p>
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} className="text-muted-foreground">
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Đóng" className="text-muted-foreground">
+            <X aria-hidden="true" className="h-4 w-4" />
           </Button>
         </div>
 
@@ -245,8 +247,9 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
 
               <div className="flex items-end gap-2">
                 <div className="flex-1">
-                  <label className={labelCls}>Phòng *</label>
+                  <label htmlFor="checkin-room" className={labelCls}>Phòng *</label>
                   <select
+                    id="checkin-room"
                     value={selectedRoomId}
                     onChange={(e) => { setSelectedRoomId(e.target.value); setRoomConflict(null); setError('') }}
                     className={inputCls}
@@ -337,8 +340,9 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
                   <p className="text-xs font-semibold text-muted-foreground">Thu thêm ngay bây giờ (không bắt buộc)</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={labelCls}>Số tiền (VND)</label>
+                      <label htmlFor="checkin-payment-amount" className={labelCls}>Số tiền (VND)</label>
                       <Input
+                        id="checkin-payment-amount"
                         type="number"
                         min="0"
                         max={outstanding}
@@ -349,8 +353,9 @@ export default function CheckInWizard({ booking, rooms, onComplete, onClose }: P
                       />
                     </div>
                     <div>
-                      <label className={labelCls}>Hình thức</label>
+                      <label htmlFor="checkin-payment-method" className={labelCls}>Hình thức</label>
                       <select
+                        id="checkin-payment-method"
                         value={paymentMethod}
                         onChange={(e) => setPaymentMethod(e.target.value)}
                         className={inputCls}

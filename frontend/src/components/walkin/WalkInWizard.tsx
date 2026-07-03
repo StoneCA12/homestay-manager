@@ -208,8 +208,8 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
             <h2 className="text-base font-bold text-foreground">Nhận phòng trực tiếp</h2>
             <p className="text-xs text-muted-foreground">Không có đặt trước</p>
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} className="text-muted-foreground">
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Đóng" className="text-muted-foreground">
+            <X aria-hidden="true" className="h-4 w-4" />
           </Button>
         </div>
 
@@ -228,8 +228,9 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Ngày nhận *</label>
+                  <label htmlFor="walkin-checkin" className={labelCls}>Ngày nhận *</label>
                   <Input
+                    id="walkin-checkin"
                     type="date"
                     value={checkIn}
                     min={today}
@@ -243,8 +244,9 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
                   />
                 </div>
                 <div>
-                  <label className={labelCls}>Ngày trả *</label>
+                  <label htmlFor="walkin-checkout" className={labelCls}>Ngày trả *</label>
                   <Input
+                    id="walkin-checkout"
                     type="date"
                     value={checkOut}
                     min={addDays(checkIn, 1)}
@@ -256,8 +258,8 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
 
               <div className="flex items-end gap-3">
                 <div className="flex-1">
-                  <label className={labelCls}>Loại phòng</label>
-                  <select value={roomTypeFilter} onChange={(e) => setRoomTypeFilter(e.target.value)} className={inputCls}>
+                  <label htmlFor="walkin-room-type" className={labelCls}>Loại phòng</label>
+                  <select id="walkin-room-type" value={roomTypeFilter} onChange={(e) => setRoomTypeFilter(e.target.value)} className={inputCls}>
                     {ROOM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
@@ -334,9 +336,10 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
               <h3 className="text-sm font-semibold text-foreground">Thông tin khách</h3>
 
               <div>
-                <label className={labelCls}>Số điện thoại</label>
+                <label htmlFor="walkin-phone" className={labelCls}>Số điện thoại</label>
                 <div className="flex gap-2">
                   <Input
+                    id="walkin-phone"
                     value={phone}
                     onChange={(e) => { setPhone(e.target.value); setLookupDone(false) }}
                     placeholder="0901234567"
@@ -359,27 +362,28 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
               </div>
 
               <div>
-                <label className={labelCls}>Họ tên *</label>
-                <Input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Nguyễn Văn A" className="h-9" />
+                <label htmlFor="walkin-guest-name" className={labelCls}>Họ tên *</label>
+                <Input id="walkin-guest-name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Nguyễn Văn A" className="h-9" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Loại giấy tờ</label>
-                  <select value={idType} onChange={(e) => setIdType(e.target.value)} className={inputCls}>
+                  <label htmlFor="walkin-id-type" className={labelCls}>Loại giấy tờ</label>
+                  <select id="walkin-id-type" value={idType} onChange={(e) => setIdType(e.target.value)} className={inputCls}>
                     <option value="">-- Chọn --</option>
                     {ID_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>Số giấy tờ</label>
-                  <Input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} placeholder="123456789" className="h-9" />
+                  <label htmlFor="walkin-id-number" className={labelCls}>Số giấy tờ</label>
+                  <Input id="walkin-id-number" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} placeholder="123456789" className="h-9" />
                 </div>
               </div>
 
               <div>
-                <label className={labelCls}>Số khách</label>
+                <label htmlFor="walkin-num-guests" className={labelCls}>Số khách</label>
                 <Input
+                  id="walkin-num-guests"
                   type="number"
                   min="1"
                   max="10"
@@ -413,8 +417,9 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
               </div>
 
               <div>
-                <label className={labelCls}>Tổng tiền phòng (VND) *</label>
+                <label htmlFor="walkin-total-price" className={labelCls}>Tổng tiền phòng (VND) *</label>
                 <Input
+                  id="walkin-total-price"
                   type="number"
                   min="0"
                   value={totalPrice}
@@ -427,8 +432,9 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
               </div>
 
               <div>
-                <label className={labelCls}>Ghi chú</label>
+                <label htmlFor="walkin-notes" className={labelCls}>Ghi chú</label>
                 <textarea
+                  id="walkin-notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
@@ -477,8 +483,9 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
                 <p className="text-xs font-semibold text-muted-foreground">Thu ngay (không bắt buộc)</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelCls}>Số tiền (VND)</label>
+                    <label htmlFor="walkin-deposit-amount" className={labelCls}>Số tiền (VND)</label>
                     <Input
+                      id="walkin-deposit-amount"
                       type="number"
                       min="0"
                       max={Number(totalPrice)}
@@ -489,8 +496,8 @@ export default function WalkInWizard({ onComplete, onClose }: Props) {
                     />
                   </div>
                   <div>
-                    <label className={labelCls}>Hình thức</label>
-                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputCls} style={{ height: '36px' }}>
+                    <label htmlFor="walkin-payment-method" className={labelCls}>Hình thức</label>
+                    <select id="walkin-payment-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputCls} style={{ height: '36px' }}>
                       {PAYMENT_METHODS.map((m) => (
                         <option key={m.value} value={m.value}>{m.label}</option>
                       ))}
